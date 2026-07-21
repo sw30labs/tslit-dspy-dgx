@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "tslit-dspy-dgx"
+version = "0.2.0"
+description = "TSLIT-DSPy on NVIDIA DGX Spark — DSPy integrity testing with non-adversary detection models"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.12"
+authors = [
+    { name = "Nicolas Cravino" },
+]
+keywords = [
+    "dspy",
+    "llm-security",
+    "backdoor-detection",
+    "model-integrity",
+    "tslit",
+    "dgx",
+    "vllm",
+    "nemotron",
+]
+
+dependencies = [
+    "dspy>=2.5",
+    "python-dotenv>=1.0",
+    "openai>=1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+]
+
+[project.scripts]
+tslit = "tslit_dspy.cli:main"
+tslit-dspy = "tslit_dspy.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tslit_dspy"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+# Thin DGX-friendly launcher (mirrors greyswan / driftlab UX).
+set -euo pipefail
+
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "${ROOT}"
+
+PYTHON="${TSLIT_PYTHON:-}"
+if [[ -z "${PYTHON}" ]]; then
+  if [[ -x "${ROOT}/.venv/bin/python" ]]; then
+    PYTHON="${ROOT}/.venv/bin/python"
+  elif command -v python3.12 >/dev/null 2>&1; then
+    PYTHON="python3.12"
+  else
+    PYTHON="python3"
+  fi
+fi
+
+export PATH="${ROOT}/.venv/bin:${PATH}"
+
+usage() {
+  cat <<EOF
+Usage: $(basename "$0") <command> [args...]
+
+Commands:
+  install              Create .venv and install package (setup-venv.sh)
+  doctor               Host + data + vLLM + model-origin policy
+  policy               Print non-adversary / American model policy
+  test-vllm            Catalog + tiny completion against local vLLM
+  smoke                Offline import + policy checks (no GPU)
+  evaluate [args...]   Run detector evaluation
+  optimize [args...]   MIPROv2 compile (expensive)
+  experiment [--mini]  scripts/run_experiment.sh
+  scan [args...]       Probe target (Qwen) + analyze with Nemotron detector
+  pytest [args...]     Run unit tests
+  help                 This help
+
+Examples:
+  ./tslit install
+  ./tslit doctor
+  # Scan Qwen (target) — probe phase
+  ./tslit scan --phase probe --manage-vllm --target-recipe qwen27
+  # Analyze probes with American detector
+  ./tslit scan --phase analyze --manage-vllm --detector-recipe nemotron-super
+  # Or both (switches vLLM mid-run)
+  ./tslit scan --phase all --manage-vllm
+  ~/Desktop/start-vllm.sh nemotron-super
+  ./tslit test-vllm
+  ./tslit evaluate --use-compiled --test workspace/data/dev.jsonl
+  ./tslit experiment --mini
+
+Environment:
+  TSLIT_PYTHON         Python binary (default: .venv/bin/python or python3.12)
+  See .env.example for VLLM_* / provider settings.
+
+Detection LM (required for live eval):
+  NVIDIA Nemotron via ~/Desktop/start-vllm.sh nemotron-super
+  Do NOT point VLLM_MODEL at Qwen recipes for the analyzer.
+EOF
+}
+
+if [[ $# -eq 0 ]]; then
+  usage
+  exit 0
+fi
+
+cmd="${1:-help}"
+shift || true
+
+case "${cmd}" in
+  -h|--help|help)
+    usage
+    ;;
+  install|setup)
+    exec bash "${ROOT}/setup-venv.sh" "$@"
+    ;;
+  doctor|policy|test-vllm|smoke|evaluate|optimize|experiment|scan)
+    exec "${PYTHON}" -m tslit_dspy.cli "${cmd}" "$@"
+    ;;
+  pytest|test)
+    exec "${PYTHON}" -m pytest "$@"
+    ;;
+  *)
+    echo "unknown command: ${cmd}" >&2
+    usage
+    exit 1
+    ;;
+esac

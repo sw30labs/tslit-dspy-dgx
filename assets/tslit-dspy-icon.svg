@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TSLIT-DSPy icon — minimal monochrome
+  Time-shift only: two offset clock rings, two hands.
+  Inspired by ultra-simple product marks (single idea, high contrast, no ornament).
+-->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TSLIT-DSPy">
+  <!-- Solid field -->
+  <rect width="512" height="512" rx="96" ry="96" fill="#000000"/>
+
+  <!--
+    TIME-SHIFT
+    Left ring  = baseline time
+    Right ring = shifted time (displaced, different hand angle)
+    Nothing else.
+  -->
+  <g fill="none" stroke="#FFFFFF" stroke-linecap="round" stroke-linejoin="round">
+    <!-- Baseline clock -->
+    <circle cx="210" cy="256" r="92" stroke-width="14"/>
+    <line x1="210" y1="256" x2="172" y2="198" stroke-width="14"/>
+
+    <!-- Shifted clock (offset right) -->
+    <circle cx="302" cy="256" r="92" stroke-width="14" opacity="0.55"/>
+    <line x1="302" y1="256" x2="362" y2="210" stroke-width="14"/>
+  </g>
+
+  <!-- Pivots -->
+  <circle cx="210" cy="256" r="10" fill="#FFFFFF"/>
+  <circle cx="302" cy="256" r="10" fill="#FFFFFF" opacity="0.55"/>
+</svg>

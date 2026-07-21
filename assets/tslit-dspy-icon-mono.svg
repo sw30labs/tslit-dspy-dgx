@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Transparent / invert-friendly mono mark (no tile) for dark or light UIs -->
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="TSLIT-DSPy mark">
+  <g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="210" cy="256" r="92" stroke-width="14"/>
+    <line x1="210" y1="256" x2="172" y2="198" stroke-width="14"/>
+    <circle cx="302" cy="256" r="92" stroke-width="14" opacity="0.45"/>
+    <line x1="302" y1="256" x2="362" y2="210" stroke-width="14" opacity="0.45"/>
+  </g>
+  <circle cx="210" cy="256" r="10" fill="currentColor"/>
+  <circle cx="302" cy="256" r="10" fill="currentColor" opacity="0.45"/>
+</svg>
