@@ -3,33 +3,15 @@
 MIPROv2 optimization script for TSLIT-DSPy.
 
 Compiles high-quality threat detection prompts from labeled training data.
-Run this ONCE against a capable API model (GPT-4o-mini or Azure GPT-4o).
-The compiled prompts are then deployed to a local Ollama model for inference.
-
-Pattern: Compile on API, deploy on Ollama.
-    - Compilation makes hundreds of API calls — needs throughput
-    - Compiled prompts are model-architecture-agnostic
-    - The saved .json contains optimized instructions + few-shot demos
-    - Load the .json on any Ollama model for fully local inference
+Compile and infer both go through local Ollama (non-adversary detection LM).
 
 Usage:
-    # API keys are loaded from .env file automatically
-
-    # Run optimization with cloud API (fast, recommended)
     python -m tslit_dspy.optimize \\
         --train workspace/data/train.jsonl \\
         --dev workspace/data/dev.jsonl \\
         --output workspace/compiled/tslit_analyzer_optimized.json \\
-        --compile-model openai/gpt-4o-mini \\
-        --auto medium
-
-    # Or with local MLX server (set USE_LOCAL_MLX=true in .env)
-    python -m tslit_dspy.optimize \\
-        --train workspace/data/train.jsonl \\
-        --dev workspace/data/dev.jsonl \\
-        --output workspace/compiled/tslit_analyzer_optimized.json \\
-        --compile-model local \\
-        --auto medium
+        --compile-model ollama \\
+        --auto light
 """
 
 from __future__ import annotations
@@ -158,7 +140,7 @@ def run_optimization(
     train_path: Path,
     dev_path: Path,
     output_path: Path,
-    compile_model: str = "vllm",
+    compile_model: str = "ollama",
     auto: str = "medium",
     num_threads: int = 4,
     max_bootstrapped_demos: int = 4,
@@ -166,8 +148,7 @@ def run_optimization(
 ):
     """Run MIPROv2 optimization and save compiled model.
 
-    On DGX the default compile LM is local vLLM Nemotron (US / non-adversary).
-    Cloud R&D still prefers Sonnet for throughput: --compile-model anthropic/claude-sonnet-4-6.
+    Default compile LM is local Ollama (Meta Muse Glimmer; US / non-adversary).
     Adversary-origin models are blocked by model_policy.
     """
     logger.info(f"Compile model: {compile_model}")
@@ -276,9 +257,8 @@ def main():
         help="Path to save compiled model JSON"
     )
     parser.add_argument(
-        "--compile-model", type=str, default="vllm",
-        help="Compile LM: vllm/local (DGX Nemotron default), anthropic/claude-*, "
-             "openai/gpt-*, or other allowed non-adversary models. "
+        "--compile-model", type=str, default="ollama",
+        help="Compile LM: Ollama tag or alias (default: OLLAMA_MODEL / Muse Glimmer). "
              "Adversary-origin models (Qwen/DeepSeek/…) are blocked."
     )
     parser.add_argument(

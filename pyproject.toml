@@ -19,8 +19,8 @@ keywords = [
     "model-integrity",
     "tslit",
     "dgx",
-    "vllm",
-    "nemotron",
+    "ollama",
+    "muse-glimmer",
 ]
 
 dependencies = [

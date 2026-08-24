@@ -21,6 +21,7 @@ from typing import Any, Dict, List, Optional
 
 import dspy
 from dspy.adapters import JSONAdapter
+from dspy.adapters.chat_adapter import ChatAdapter
 from dspy.signatures import Signature
 
 from tslit_dspy.signatures import (
@@ -71,6 +72,15 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 }
 
 
+def _extract_json_blob(completion: str) -> str:
+    """Drop markdown fences so JSONAdapter sees a raw object."""
+    text = (completion or "").strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text, count=1)
+        text = re.sub(r"\s*```$", "", text)
+    return text
+
+
 def _alias_json_fields(completion: str, signature: type[Signature]) -> str:
     """Rewrite common short field names to match signature OutputFields."""
     try:
@@ -106,17 +116,27 @@ def _alias_json_fields(completion: str, signature: type[Signature]) -> str:
 
 
 class ThinkingStrippedAdapter(JSONAdapter):
-    """JSONAdapter that strips thinking blocks and remaps common field aliases."""
+    """JSON from local Ollama without `format=json` (that yields empty `{}`)."""
+
+    def __init__(self, callbacks=None):
+        super().__init__(callbacks=callbacks, use_native_function_calling=False)
+
+    def _json_adapter_call_common(self, lm, lm_kwargs, signature, demos, inputs, call_fn):
+        # LiteLLM maps response_format=json_object → Ollama format=json.
+        # Thinking models then spend the budget in `thinking` and return {}.
+        lm_kwargs.pop("response_format", None)
+        return call_fn(lm, lm_kwargs, signature, demos, inputs)
 
     def parse(self, signature: type[Signature], completion: str) -> dict[str, Any]:
-        cleaned = _strip_thinking(completion)
+        cleaned = _extract_json_blob(_strip_thinking(completion or ""))
         cleaned = _alias_json_fields(cleaned, signature)
         try:
             return super().parse(signature, cleaned)
-        except Exception:
-            # One more pass after aliasing if super raised on missing fields
-            cleaned2 = _alias_json_fields(cleaned, signature)
-            return super().parse(signature, cleaned2)
+        except Exception as json_err:
+            try:
+                return ChatAdapter.parse(self, signature, completion or cleaned)
+            except Exception:
+                raise json_err
 
 
 # Register globally so all DSPy modules use it
@@ -223,61 +243,79 @@ class TSLITAnalyzer(dspy.Module):
         baseline_response = record.get("baseline_response", "")
 
         # ---- Step 1: Classify threat ----
-        classification = self.threat_classifier(
-            response_text=response_text,
-            probe_date=str(probe_date),
-            affiliation=affiliation,
-            scenario_type=scenario_type,
-            detector_flags=detector_flags,
-            baseline_response=baseline_response,
-        )
-        threat_category = _normalize_category(classification.threat_category or "none")
-        reasoning = classification.reasoning or ""
+        try:
+            classification = self.threat_classifier(
+                response_text=response_text,
+                probe_date=str(probe_date),
+                affiliation=affiliation,
+                scenario_type=scenario_type,
+                detector_flags=detector_flags,
+                baseline_response=baseline_response,
+            )
+            threat_category = _normalize_category(classification.threat_category or "none")
+            reasoning = classification.reasoning or ""
+        except Exception as exc:  # noqa: BLE001 — keep the campaign moving
+            logger.error("ThreatClassifier failed: %s", exc)
+            threat_category = "none"
+            reasoning = f"classifier parse error: {exc}"
 
         # ---- Step 2: Extract evidence (skip for "none") ----
+        evidence_spans: List[str] = []
+        evidence_types: List[str] = []
         if threat_category != "none":
-            evidence_result = self.evidence_extractor(
-                response_text=response_text,
-                threat_category=threat_category,
-                classification_reasoning=reasoning,
-            )
-            evidence_spans = _safe_parse_json_list(evidence_result.evidence_spans or "[]")
-            evidence_types = _safe_parse_json_list(evidence_result.evidence_types or "[]")
-        else:
-            evidence_spans = []
-            evidence_types = []
+            try:
+                evidence_result = self.evidence_extractor(
+                    response_text=response_text,
+                    threat_category=threat_category,
+                    classification_reasoning=reasoning,
+                )
+                evidence_spans = _safe_parse_json_list(evidence_result.evidence_spans or "[]")
+                evidence_types = _safe_parse_json_list(evidence_result.evidence_types or "[]")
+            except Exception as exc:  # noqa: BLE001
+                logger.error("EvidenceExtractor failed: %s", exc)
 
         # Pad evidence_types to match spans length
         while len(evidence_types) < len(evidence_spans):
             evidence_types.append("unknown")
 
         # ---- Step 3: Score risk ----
-        risk_result = self.risk_scorer(
-            threat_category=threat_category,
-            evidence_spans=json.dumps(evidence_spans),
-            detector_flags=detector_flags,
-            affiliation=affiliation,
-            probe_date=str(probe_date),
-        )
-        risk_score = _safe_parse_int(risk_result.risk_score or "0")
-        risk_rationale = risk_result.risk_rationale or ""
+        try:
+            risk_result = self.risk_scorer(
+                threat_category=threat_category,
+                evidence_spans=json.dumps(evidence_spans),
+                detector_flags=detector_flags,
+                affiliation=affiliation,
+                probe_date=str(probe_date),
+            )
+            risk_score = _safe_parse_int(risk_result.risk_score or "0")
+            risk_rationale = risk_result.risk_rationale or ""
+        except Exception as exc:  # noqa: BLE001
+            logger.error("RiskScorer failed: %s", exc)
+            risk_score = 0 if threat_category == "none" else 40
+            risk_rationale = f"risk parse error: {exc}"
 
         # ---- Step 4: QA validation with assertions ----
-        qa_result = self.qa_validator(
-            threat_category=threat_category,
-            evidence_spans=json.dumps(evidence_spans),
-            risk_score=str(risk_score),
-            response_text=response_text,
-        )
-
-        is_valid = (qa_result.is_valid or "").strip().lower() in ("true", "yes", "1")
-        qa_notes = qa_result.qa_notes or ""
-        corrected_raw = (qa_result.corrected_category or "").strip()
+        is_valid = True
+        qa_notes = ""
         corrected_category = None
-        if corrected_raw and corrected_raw != "none_needed":
-            corrected = _normalize_category(corrected_raw)
-            if corrected != threat_category:
-                corrected_category = corrected
+        try:
+            qa_result = self.qa_validator(
+                threat_category=threat_category,
+                evidence_spans=json.dumps(evidence_spans),
+                risk_score=str(risk_score),
+                response_text=response_text,
+            )
+            is_valid = (qa_result.is_valid or "").strip().lower() in ("true", "yes", "1")
+            qa_notes = qa_result.qa_notes or ""
+            corrected_raw = (qa_result.corrected_category or "").strip()
+            if corrected_raw and corrected_raw != "none_needed":
+                corrected = _normalize_category(corrected_raw)
+                if corrected != threat_category:
+                    corrected_category = corrected
+        except Exception as exc:  # noqa: BLE001
+            logger.error("QAValidator failed: %s", exc)
+            qa_notes = f"qa parse error: {exc}"
+            is_valid = threat_category == "none"
 
         # ---- Validation checks (hard constraints) ----
         if threat_category != "none" and len(evidence_spans) == 0:

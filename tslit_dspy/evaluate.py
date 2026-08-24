@@ -13,14 +13,14 @@ Usage:
     python -m tslit_dspy.evaluate \\
         --test workspace/data/test.jsonl \\
         --output workspace/evaluation/baseline_eval.md \\
-        --model ollama_chat/llama3.1
+        --model ollama
 
     # Optimized evaluation
     python -m tslit_dspy.evaluate \\
         --test workspace/data/test.jsonl \\
         --compiled workspace/compiled/tslit_analyzer_optimized.json \\
         --output workspace/evaluation/optimized_eval.md \\
-        --model ollama_chat/llama3.1
+        --model ollama
 """
 
 from __future__ import annotations
@@ -84,7 +84,7 @@ def load_test_examples(filepath: Path) -> List[dspy.Example]:
 def run_evaluation(
     test_path: Path,
     output_path: Path,
-    model: str = "vllm",
+    model: str = "ollama",
     model_base_url: str = "",
     compiled_path: Optional[Path] = None,
     title: str = "Evaluation",
@@ -94,8 +94,8 @@ def run_evaluation(
     Args:
         test_path: Path to test JSONL
         output_path: Path to save markdown report
-        model: Detection LM (default: local vLLM / Nemotron on DGX)
-        model_base_url: Optional base URL override (vLLM or Ollama)
+        model: Detection LM (default: local Ollama / Muse Glimmer)
+        model_base_url: Optional Ollama base URL override
         compiled_path: Path to compiled model JSON (None = zero-shot)
         title: Report title
 
@@ -270,13 +270,13 @@ def main():
         help="Path to save evaluation report (markdown)"
     )
     parser.add_argument(
-        "--model", type=str, default="vllm",
-        help="Detection LM (default: vllm → NVIDIA Nemotron on DGX). "
+        "--model", type=str, default="ollama",
+        help="Detection LM (default: ollama → Muse Glimmer on local Ollama). "
              "Adversary-origin models blocked."
     )
     parser.add_argument(
         "--model-base-url", type=str, default="",
-        help="Optional OpenAI-compatible base URL override (default: VLLM_BASE_URL)"
+        help="Optional Ollama base URL override (default: OLLAMA_BASE_URL)"
     )
     parser.add_argument(
         "--compiled", type=Path, default=None,

@@ -1,21 +1,14 @@
 # NVIDIA DGX Spark deployment — TSLIT-DSPy
 
 **TSLIT-DSPy DGX** targets DGX Spark only for local inference. It ports the
-research analyzer from `tslit-dspy-ar` onto the shared Desktop vLLM stack.
+research analyzer from `tslit-dspy-ar` onto **Ollama** (`127.0.0.1:11434`).
 
 ## Platform assumptions
 
 - NVIDIA DGX Spark / GB10 on ARM64 Linux (DGX OS)
 - Application runs in `.venv` with **Python 3.12**
-- Shared model weights under `$HOME/models/huggingface`
-- Shared recipes under `$HOME/models/recipes`
-- vLLM OpenAI-compatible server on **127.0.0.1:8000** via:
-
-  ```bash
-  ~/Desktop/start-vllm.sh nemotron-super
-  # or
-  ~/Desktop/serve-local-llm.sh up nemotron-super
-  ```
+- Local LLM server: **Ollama** on **127.0.0.1:11434** (`ollama serve`)
+- One server serves both the detector and scan targets (different tags)
 
 ## Detection vs target models
 
@@ -25,26 +18,27 @@ This project’s integrity-testing premise:
 
 | Layer | Model | Origin policy |
 |-------|--------|---------------|
-| MIPROv2 compile | Nemotron (local) or Claude Sonnet (cloud) | Detection — allowed |
-| Analyzer inference | Nemotron (local) or Claude Opus / GPT-OSS | Detection — allowed |
-| Autoresearch agent | Same vLLM Nemotron (or GPT-OSS) | Detection — allowed |
-| Models under probe | Qwen, DeepSeek, MiniMax, … | Target — any origin |
+| MIPROv2 compile | Muse Glimmer (Ollama) | Detection — allowed |
+| Analyzer inference | Muse Glimmer (Ollama) | Detection — allowed |
+| Autoresearch agent | Same Ollama detection tag | Detection — allowed |
+| Models under probe | Qwen, DeepSeek, Ornith, … | Target — any origin |
 
 Policy implementation: `tslit_dspy/model_policy.py`.  
-LM routing: `tslit_dspy/lm.py`.
+LM routing: `tslit_dspy/lm.py` (Ollama only).
 
-### Shared Desktop recipes
+### Ollama tags on this box
 
-| Recipe | Model id | TSLIT role |
-|--------|----------|------------|
-| `nemotron-super` | `nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4` | **Detection default** |
-| `qwen27` | `Qwen/Qwen3.6-27B-FP8` | Target only (blocked as detector) |
-| `coder-next` | `Qwen/Qwen3-Coder-Next-FP8` | Target only (blocked as detector) |
+| Tag | TSLIT role |
+|-----|------------|
+| `muse-glimmer:30b-bf16` | **Detection default** (Meta, US) |
+| `qwen3.8:27b-mtp-bf16` | Target only (blocked as detector) |
+| `ornith-1.5:35b` | Target only (Qwen-family; blocked as detector) |
+| `deepseek-v4-flash-0731:ud-iq2-m` | Target only (blocked as detector) |
 
 ## Setup
 
 ```bash
-cd ~/Desktop/tslit-dspy-dgx
+cd ~/Desktop/code/tslit-dspy-dgx
 ./tslit install          # or bash setup-venv.sh
 source .venv/bin/activate
 cp -n .env.example .env
@@ -63,8 +57,8 @@ cp -n .env.example .env
 ### Live local detection
 
 ```bash
-~/Desktop/start-vllm.sh nemotron-super
-./tslit test-vllm
+ollama serve   # if not already running
+./tslit test-ollama
 ./tslit evaluate --use-compiled --test workspace/data/dev.jsonl
 ```
 
@@ -79,19 +73,28 @@ Prints `EXPERIMENT_RESULT: accuracy=…` for agent parsers.
 ### Full MIPROv2 recompile on DGX
 
 ```bash
-./tslit optimize --compile-model vllm --auto light
-# heavy + cloud Sonnet remains the research default for paper metrics
+./tslit optimize --compile-model ollama --auto light
 ```
 
-Local Nemotron compile is slower and may need lower `auto` / fewer threads
-(`config/experiment_config.json` defaults to `light`, 2 threads).
+Local compile is slower; `config/experiment_config.json` defaults to `light`, 2 threads.
+
+### Probe a target then analyze
+
+Same Ollama process, two tags — no server switch. Prefer the test scripts:
+
+```bash
+./tslit test-probe                         # one probe
+./tslit test-campaign                      # mini campaign + analyze
+./tslit test-targets                       # one probe per served target
+./tslit scan --phase all --target-model qwen3.8:27b-mtp-bf16   # raw
+```
 
 ## Differences from `tslit-dspy-ar`
 
 | Item | Research (`tslit-dspy-ar`) | DGX port |
 |------|----------------------------|----------|
-| Default LM | Anthropic Sonnet/Opus | vLLM Nemotron |
-| MLX | Optional Apple path | Optional; vLLM primary |
+| Default LM | Anthropic Sonnet/Opus | Ollama Muse Glimmer |
+| Local server | (cloud) | Ollama `:11434` |
 | Model policy | Documented | **Enforced in code** |
 | Launcher | `python -m …` | `./tslit` |
 | Python | ≥3.10 | **3.12** |
@@ -100,13 +103,13 @@ Local Nemotron compile is slower and may need lower `auto` / fewer threads
 
 | Symptom | Fix |
 |---------|-----|
-| `vLLM not reachable` | `~/Desktop/start-vllm.sh nemotron-super` then `./tslit doctor` |
-| `Model … is not allowed` | You pointed the detector at Qwen/etc. Switch recipe to `nemotron-super` |
-| Configured model not in `/v1/models` | Restart vLLM with the Nemotron recipe; match `VLLM_MODEL` to catalog id |
-| Slow MIPROv2 | Use `--auto light`, fewer threads, or cloud Sonnet for compile only |
+| `Ollama not reachable` | `ollama serve` then `./tslit doctor` |
+| `Model … is not allowed` | You pointed the detector at Qwen/DeepSeek/Ornith. Set `OLLAMA_MODEL=muse-glimmer:30b-bf16` |
+| Configured model not in catalog | `ollama pull muse-glimmer:30b-bf16` (or match `OLLAMA_MODEL` to `ollama list`) |
+| Slow MIPROv2 | Use `--auto light` and fewer threads |
 
 ## Related Desktop projects
 
-- `grey-swan-dgx` — LangGraph + Nemotron default  
-- `driftlab-dgx` — offline-first + optional vLLM  
-- `serve-local-llm.sh` / `start-vllm.sh` — shared inference stack  
+- `grey-swan-dgx` — LangGraph  
+- `driftlab-dgx` — offline-first  
+- Ollama — the machine-wide LLM serving engine  

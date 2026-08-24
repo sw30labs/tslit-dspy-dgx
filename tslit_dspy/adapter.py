@@ -8,12 +8,12 @@ the original LangGraph-based analyzer. The TSLIT CLI
     analyzer:
       backend: "dspy"
       compiled_model: "workspace/compiled/tslit_analyzer_optimized.json"
-      ollama_model: "llama3.1"
+      ollama_model: "muse-glimmer:30b-bf16"
 
 Usage:
     adapter = DSPyAnalyzerAdapter(
         compiled_model_path="workspace/compiled/tslit_analyzer_optimized.json",
-        ollama_model="llama3.1",
+        ollama_model="muse-glimmer:30b-bf16",
     )
     results = adapter.analyze(artifacts_dir="artifacts/")
     report = adapter.generate_report(results)
@@ -33,7 +33,7 @@ load_dotenv()
 
 import dspy
 
-from tslit_dspy.modules import TSLITAnalyzer
+from tslit_dspy.modules import TSLITAnalyzer, ThinkingStrippedAdapter
 from tslit_dspy.schemas import AnalysisResult, ThreatReport
 
 logger = logging.getLogger(__name__)
@@ -50,7 +50,7 @@ class DSPyAnalyzerAdapter:
     def __init__(
         self,
         compiled_model_path: Optional[str] = None,
-        ollama_model: str = "vllm",
+        ollama_model: str = "ollama",
         ollama_base_url: str = "",
         model: Optional[str] = None,
         model_base_url: Optional[str] = None,
@@ -60,18 +60,18 @@ class DSPyAnalyzerAdapter:
         Args:
             compiled_model_path: Path to compiled model JSON from MIPROv2.
                 If None, runs zero-shot (unoptimized).
-            ollama_model: Legacy alias for local model (prefer `model=`).
-            ollama_base_url: Legacy base URL alias.
-            model: Detection LM id or alias (default: local vLLM / Nemotron).
-            model_base_url: Optional OpenAI-compatible base URL.
+            ollama_model: Local Ollama tag or alias (prefer `model=`).
+            ollama_base_url: Ollama base URL (default: OLLAMA_BASE_URL).
+            model: Detection LM id or alias (default: local Ollama / Muse Glimmer).
+            model_base_url: Optional Ollama base URL override.
         """
         from tslit_dspy.lm import make_lm
 
-        mid = model or ollama_model or "vllm"
+        mid = model or ollama_model or "ollama"
         base = model_base_url or ollama_base_url or None
         lm = make_lm(mid, role="inference", model_base_url=base or None)
         logger.info("DSPy configured for detection inference model=%s", mid)
-        dspy.configure(lm=lm)
+        dspy.configure(lm=lm, adapter=ThinkingStrippedAdapter())
 
         # Initialize and optionally load compiled model
         self.analyzer = TSLITAnalyzer()
@@ -183,34 +183,51 @@ class DSPyAnalyzerAdapter:
         Matches tslit.analyzer.core.load_model_data() file discovery logic.
         """
         ndjson_files = [
-            f for f in artifacts_dir.glob("*.ndjson")
+            f for f in artifacts_dir.glob("scan_*.ndjson")
             if not f.name.endswith("_requests.ndjson")
         ]
+        # Fallback: any ndjson that isn't a requests companion
+        if not ndjson_files:
+            ndjson_files = [
+                f for f in artifacts_dir.glob("*.ndjson")
+                if not f.name.endswith("_requests.ndjson")
+            ]
 
         if not ndjson_files:
             logger.warning(f"No NDJSON files found in {artifacts_dir}")
             return []
 
-        # Use most recent file
-        filepath = sorted(ndjson_files, key=lambda f: f.stat().st_mtime, reverse=True)[0]
-        logger.info(f"Loading from: {filepath}")
+        # All campaign files (mini + plus increments), newest wins on probe_id.
+        by_id: Dict[str, Dict[str, Any]] = {}
+        order: List[str] = []
+        for filepath in sorted(ndjson_files, key=lambda f: f.stat().st_mtime):
+            logger.info(f"Loading from: {filepath}")
+            batch: List[Dict[str, Any]] = []
+            with open(filepath) as f:
+                for line_num, line in enumerate(f, 1):
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        rec = json.loads(line)
+                    except json.JSONDecodeError as e:
+                        logger.error(f"{filepath.name}:{line_num}: parse error: {e}")
+                        continue
+                    batch.append(rec)
+            requests_path = artifacts_dir / f"{filepath.stem}_requests.ndjson"
+            if requests_path.exists():
+                self._merge_requests(batch, requests_path)
+            for rec in batch:
+                pid = str(
+                    rec.get("probe_id")
+                    or rec.get("example_id")
+                    or f"{filepath.name}:{len(by_id)}"
+                )
+                if pid not in by_id:
+                    order.append(pid)
+                by_id[pid] = rec
 
-        records = []
-        with open(filepath) as f:
-            for line_num, line in enumerate(f, 1):
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    records.append(json.loads(line))
-                except json.JSONDecodeError as e:
-                    logger.error(f"Line {line_num}: parse error: {e}")
-
-        # Try to load companion requests file for prompt context
-        requests_path = artifacts_dir / f"{filepath.stem}_requests.ndjson"
-        if requests_path.exists():
-            self._merge_requests(records, requests_path)
-
+        records = [by_id[pid] for pid in order]
         return records
 
     def _merge_requests(

@@ -1,8 +1,8 @@
 {
   "comment": "DGX port — detection stack uses non-adversary / American models only. DO NOT edit test.jsonl or dev.jsonl.",
 
-  "compile_model": "vllm",
-  "inference_model": "vllm",
+  "compile_model": "ollama",
+  "inference_model": "ollama",
   "auto_setting": "light",
 
   "mipro": {
@@ -24,15 +24,14 @@
   },
 
   "dgx": {
-    "provider": "vllm",
-    "vllm_base_url": "http://127.0.0.1:8000/v1",
-    "detection_model": "nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4",
-    "detection_recipe": "nemotron-super",
-    "target_only_recipes": ["qwen27", "coder-next"],
-    "notes": "Compile and infer on Nemotron (NVIDIA, US). Optional cloud: Sonnet compile / Opus infer. Never put Qwen/DeepSeek in the detection brain."
+    "provider": "ollama",
+    "ollama_base_url": "http://127.0.0.1:11434",
+    "detection_model": "muse-glimmer:30b-bf16",
+    "target_model": "qwen3.8:27b-mtp-bf16",
+    "notes": "Compile and infer on Muse Glimmer (Meta, US) via Ollama. Never put Qwen/DeepSeek in the detection brain."
   },
 
   "_metric_weights_note": "Metric weights are hardcoded in tslit_dspy/metrics.py (0.50 category, 0.20 risk, 0.20 evidence, 0.10 QA).",
 
-  "notes": "DGX defaults: local vLLM Nemotron for compile+infer (policy-safe). For cloud R&D parity set compile_model=anthropic/claude-sonnet-4-6 and inference_model=anthropic/claude-opus-4-6 with ANTHROPIC_API_KEY."
+  "notes": "DGX defaults: local Ollama Muse Glimmer for compile+infer (policy-safe)."
 }

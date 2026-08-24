@@ -100,8 +100,8 @@ except Exception as e:
 
 # Extract all values with defaults
 vals = {
-    'compile_model': c.get('compile_model', 'vllm'),
-    'inference_model': c.get('inference_model', 'vllm'),
+    'compile_model': c.get('compile_model', 'ollama'),
+    'inference_model': c.get('inference_model', 'ollama'),
     'auto_setting': c.get('auto_setting', 'light'),
     'num_threads': c.get('mipro', {}).get('num_threads', 2),
     'max_boot': c.get('mipro', {}).get('max_bootstrapped_demos', 2),

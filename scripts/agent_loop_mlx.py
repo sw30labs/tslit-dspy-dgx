@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
 """
-agent_loop_mlx.py — Autonomous research agent for TSLIT-DSPy (DGX / local OpenAI-compatible).
+agent_loop_mlx.py — Autonomous research agent for TSLIT-DSPy (local Ollama).
 
-General-purpose research driver for a local OpenAI-compatible server (vLLM on DGX,
-MLX on Apple, or Ollama) that may not support native function calling. Tool
-invocations are handled via structured XML tool-call text.
+General-purpose research driver for Ollama's OpenAI-compatible API. Tool
+invocations are handled via structured XML tool-call text (no native tools).
 
-DGX default: vLLM on http://127.0.0.1:8000/v1 with NVIDIA Nemotron (US / non-adversary).
-Do NOT point the agent brain at Qwen/DeepSeek/MiniMax — those are scan targets only.
+DGX default: Ollama on http://127.0.0.1:11434/v1 with Meta Muse Glimmer
+(US / non-adversary). Do NOT point the agent brain at Qwen/DeepSeek/MiniMax —
+those are scan targets only.
 
 Usage:
     python agent_loop_mlx.py [--tag TAG] [--max-loops N] [--dry-run]
-    python agent_loop_mlx.py --base-url http://127.0.0.1:8000/v1 --tag dgx
-    ~/Desktop/start-vllm.sh nemotron-super   # before live agent runs
+    python agent_loop_mlx.py --base-url http://127.0.0.1:11434/v1 --tag dgx
+    ollama serve   # before live agent runs
 """
 
 import argparse
@@ -64,7 +64,7 @@ class AgentConfig:
 
 
 # ---------------------------------------------------------------------------
-# Tool call parsing — prompt-based since MLX server has no function calling
+# Tool call parsing — prompt-based; we do not rely on native function calling
 #
 # The model is instructed to emit tool calls as:
 #   <tool_call>
@@ -380,7 +380,7 @@ def build_system_prompt(config: AgentConfig) -> str:
     tool_instructions = build_tool_instructions(config)
 
     return f"""You are an autonomous research agent. Your instructions are in {config.program_file} below.
-You are running on a local MLX inference server. You do NOT have function calling.
+You are running on local Ollama. You do NOT have function calling.
 Instead, you invoke tools by emitting structured text blocks as described below.
 
 CRITICAL RULES:
@@ -474,36 +474,23 @@ def log_api_call(model: str, messages_count: int, response, elapsed: float):
 
 def preflight_checks(base_url: str, config: AgentConfig):
     """Verify environment is ready before starting the loop."""
-    # Check server is reachable — supports both MLX (/health) and Ollama (/)
     import urllib.request
-    import urllib.error
+
     server_root = base_url.replace("/v1", "")
-    health_url = server_root + "/health"
     server_ok = False
     try:
-        with urllib.request.urlopen(health_url, timeout=5) as resp:
-            data = json.loads(resp.read())
-            if data.get("loaded"):
-                print(f"[preflight] MLX server OK — model: {data.get('model', 'unknown')}")
+        with urllib.request.urlopen(server_root, timeout=5) as resp:
+            body = resp.read().decode("utf-8", errors="replace").strip()
+            if "ollama" in body.lower() or "running" in body.lower():
+                print(f"[preflight] Ollama server OK at {server_root}")
             else:
-                print("WARNING: MLX server reports model not loaded.", file=sys.stderr)
+                print(f"[preflight] Server responded at {server_root}: {body[:80]}")
             server_ok = True
-    except (urllib.error.URLError, urllib.error.HTTPError, Exception):
-        # /health failed — try Ollama root endpoint
-        try:
-            with urllib.request.urlopen(server_root, timeout=5) as resp:
-                body = resp.read().decode("utf-8", errors="replace").strip()
-                if "ollama" in body.lower() or "running" in body.lower():
-                    print(f"[preflight] Ollama server OK at {server_root}")
-                    server_ok = True
-                else:
-                    print(f"[preflight] Server responded at {server_root}: {body[:80]}")
-                    server_ok = True
-        except Exception:
-            pass
+    except Exception:
+        pass
     if not server_ok:
-        print(f"ERROR: Cannot reach inference server at {server_root}", file=sys.stderr)
-        print("Start the server first (MLX or Ollama), then retry.", file=sys.stderr)
+        print(f"ERROR: Cannot reach Ollama at {server_root}", file=sys.stderr)
+        print("Start the server first: ollama serve", file=sys.stderr)
         sys.exit(1)
 
     # Check if run command's binary exists
@@ -526,7 +513,7 @@ def preflight_checks(base_url: str, config: AgentConfig):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Autonomous research agent using local MLX server"
+        description="Autonomous research agent using local Ollama"
     )
     parser.add_argument(
         "--tag", type=str,
@@ -538,8 +525,8 @@ def main():
         help="Stop after N experiments (default: unlimited)"
     )
     parser.add_argument(
-        "--base-url", type=str, default="http://127.0.0.1:8000/v1",
-        help="OpenAI-compatible base URL (default: DGX vLLM http://127.0.0.1:8000/v1)"
+        "--base-url", type=str, default="http://127.0.0.1:11434/v1",
+        help="Ollama OpenAI-compatible base URL (default: http://127.0.0.1:11434/v1)"
     )
     parser.add_argument(
         "--max-tokens", type=int, default=4096,
@@ -599,22 +586,23 @@ def main():
     # Preflight
     preflight_checks(args.base_url, config)
 
-    # Local OpenAI-compatible client (vLLM on DGX / MLX / Ollama)
-    api_key = os.environ.get("VLLM_API_KEY", "local")
+    api_key = os.environ.get("OLLAMA_API_KEY", "ollama")
     client = OpenAI(base_url=args.base_url, api_key=api_key)
 
-    # Prefer configured detection model; enforce non-adversary policy when package available
-    model_name = os.environ.get("VLLM_MODEL", "local")
+    model_name = os.environ.get("OLLAMA_MODEL", "muse-glimmer:30b-bf16")
     try:
         models = client.models.list()
         ids = [m.id for m in models.data]
         if ids:
-            preferred = os.environ.get("VLLM_MODEL")
-            if preferred and preferred in ids:
+            preferred = os.environ.get("OLLAMA_MODEL", model_name)
+            if preferred in ids:
                 model_name = preferred
             else:
-                model_name = ids[0]
-            print(f"[preflight] Using served model: {model_name}")
+                print(
+                    f"[preflight] {preferred!r} not in catalog {ids}; "
+                    "will still request it (Ollama pulls/loads on demand)"
+                )
+            print(f"[preflight] Using model: {model_name}")
     except Exception as exc:  # noqa: BLE001
         print(f"[preflight] Could not list models ({exc}); using model={model_name}")
 
@@ -715,7 +703,7 @@ def main():
         # Trim context if needed
         messages = trim_context(messages)
 
-        # Call local MLX server
+        # Call local Ollama
         t0 = time.time()
         try:
             response = client.chat.completions.create(

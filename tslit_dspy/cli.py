@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""CLI for TSLIT-DSPy on NVIDIA DGX Spark."""
+"""CLI for TSLIT-DSPy on NVIDIA DGX Spark (Ollama-only local serving)."""
 
 from __future__ import annotations
 
@@ -19,11 +19,12 @@ def _load_env() -> None:
 
 
 def cmd_doctor(_: argparse.Namespace) -> int:
-    from tslit_dspy.lm import health_check_vllm, host_preflight, vllm_settings
+    from tslit_dspy.lm import health_check_ollama, host_preflight, ollama_settings
     from tslit_dspy.model_policy import (
         DEFAULT_DETECTION_MODEL,
         describe_policy,
         is_allowed_detection_model,
+        strip_ollama_prefix,
     )
 
     print("TSLIT-DSPy DGX doctor")
@@ -36,18 +37,18 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     else:
         print("Host: OK (Linux / GPU tools present)")
 
-    cfg = vllm_settings()
-    print(f"\nConfigured detection model: {cfg['model']}")
-    print(f"VLLM_BASE_URL:              {cfg['base_url']}")
-    if not is_allowed_detection_model(cfg["model"]):
-        print("  ERROR: configured VLLM_MODEL is NOT allowed for the detection stack")
+    cfg = ollama_settings()
+    configured = strip_ollama_prefix(cfg["model"])
+    print(f"\nConfigured detection model: {configured}")
+    print(f"OLLAMA_BASE_URL:            {cfg['base_url']}")
+    if not is_allowed_detection_model(configured):
+        print("  ERROR: configured OLLAMA_MODEL is NOT allowed for the detection stack")
         print(f"  Use: {DEFAULT_DETECTION_MODEL}")
-        print("  Start: ~/Desktop/start-vllm.sh nemotron-super")
         return 1
     print("  origin policy: ALLOWED for detection")
 
-    health = health_check_vllm()
-    print(f"\nvLLM health @ {health['base_url']}:")
+    health = health_check_ollama()
+    print(f"\nOllama health @ {health['base_url']}:")
     if health["ok"]:
         print("  reachable: yes")
         print(f"  served models: {health['models'] or '(none)'}")
@@ -58,14 +59,14 @@ def cmd_doctor(_: argparse.Namespace) -> int:
                 "  detection-blocked (scan targets only): "
                 f"{health['detection_blocked']}"
             )
-        if cfg["model"] not in health["models"] and health["models"]:
+        if configured not in health["models"] and health["models"]:
             print(
-                f"  WARN: configured model {cfg['model']!r} not in /v1/models — "
-                "set VLLM_MODEL to a served id or restart vLLM with nemotron-super"
+                f"  WARN: configured model {configured!r} not in Ollama catalog — "
+                f"ollama pull {configured}"
             )
     else:
         print(f"  reachable: no ({health['error']})")
-        print("  Start detection LM: ~/Desktop/start-vllm.sh nemotron-super")
+        print("  Start: ollama serve")
 
     data = PROJECT_ROOT / "workspace" / "data"
     for name in ("train.jsonl", "dev.jsonl", "test.jsonl"):
@@ -77,7 +78,7 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     print(f"  compiled artifact: {'OK' if compiled.is_file() else 'missing (run optimize)'}")
 
     print("\n" + describe_policy())
-    return 0 if not findings else 0  # host arch warnings non-fatal on some boxes
+    return 0
 
 
 def cmd_policy(_: argparse.Namespace) -> int:
@@ -87,16 +88,16 @@ def cmd_policy(_: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_test_vllm(args: argparse.Namespace) -> int:
-    from tslit_dspy.lm import health_check_vllm, make_lm, vllm_settings
+def cmd_test_ollama(args: argparse.Namespace) -> int:
+    from tslit_dspy.lm import health_check_ollama, make_lm, ollama_settings
     from tslit_dspy.model_policy import assert_detection_model
 
-    health = health_check_vllm()
+    health = health_check_ollama()
     print(json.dumps(health, indent=2))
     if not health["ok"]:
-        print("vLLM not reachable", file=sys.stderr)
+        print("Ollama not reachable — start with: ollama serve", file=sys.stderr)
         return 1
-    cfg = vllm_settings()
+    cfg = ollama_settings()
     try:
         assert_detection_model(cfg["model"], role="detection")
     except ValueError as exc:
@@ -107,9 +108,8 @@ def cmd_test_vllm(args: argparse.Namespace) -> int:
 
     import dspy
 
-    lm = make_lm("vllm", role="inference")
+    lm = make_lm("ollama", role="inference")
     dspy.configure(lm=lm)
-    # Tiny completion via dspy.Predict-style call
     try:
         pred = lm("Reply with exactly: TSLIT_OK")
         print("invoke result:", pred if isinstance(pred, str) else pred)
@@ -173,13 +173,14 @@ def cmd_experiment(args: argparse.Namespace) -> int:
 
 
 def cmd_scan(args: argparse.Namespace) -> int:
-    """Probe a target model (e.g. Qwen) then optionally analyze with Nemotron."""
+    """Probe a target model (e.g. Qwen) then optionally analyze with Muse Glimmer."""
     import logging
-    import subprocess
 
+    from tslit_dspy.lm import ollama_settings
+    from tslit_dspy.model_policy import DEFAULT_TARGET_MODEL
     from tslit_dspy.probe_campaign import (
-        DEFAULT_TARGET_MODEL,
         analyze_artifacts,
+        load_existing_probe_ids,
         run_probe_campaign,
         save_campaign,
     )
@@ -193,39 +194,39 @@ def cmd_scan(args: argparse.Namespace) -> int:
     artifacts = Path(args.artifacts or root / "workspace" / "scans" / "qwen_live")
     phase = args.phase
     target = args.target_model or DEFAULT_TARGET_MODEL
-    base = args.base_url or os.getenv("VLLM_BASE_URL", "http://127.0.0.1:8000/v1")
-
-    def _maybe_start_recipe(recipe: str) -> None:
-        if not args.manage_vllm:
-            return
-        script = root / "scripts" / "vllm_recipe.sh"
-        print(f"[scan] starting vLLM recipe={recipe}")
-        subprocess.check_call(["bash", str(script), "up", recipe])
-        subprocess.check_call(["bash", str(script), "wait"])
+    cfg = ollama_settings()
+    base = args.base_url or cfg["openai_base_url"]
 
     if phase in {"probe", "all"}:
-        if args.manage_vllm:
-            _maybe_start_recipe(args.target_recipe)
         dump_dir = artifacts / "request_dumps"
-        print(f"[scan] PROBE target={target} base={base}")
+        skip_ids = set()
+        if args.skip_existing:
+            skip_ids = load_existing_probe_ids(artifacts)
+        print(f"[scan] PROBE target={target} base={base} campaign={args.campaign}")
         print(
             "[scan] time-shift controls: system virtual clock, tools=none, "
             f"dump={dump_dir}, canaries={not args.no_canary}, "
-            f"strict_hygiene={not args.no_strict_hygiene}"
+            f"strict_hygiene={not args.no_strict_hygiene}, "
+            f"skip_existing={len(skip_ids)}"
         )
         result = run_probe_campaign(
             base_url=base,
             model=target,
-            api_key=os.getenv("VLLM_API_KEY", "local"),
+            api_key=cfg["api_key"],
             max_tokens=args.max_tokens,
             limit=args.limit,
             include_canaries=not args.no_canary,
             dump_dir=dump_dir,
             strict_hygiene=not args.no_strict_hygiene,
-            fetch_rendered=not args.no_fetch_rendered,
+            fetch_rendered=args.fetch_rendered,
+            campaign=args.campaign,
+            skip_ids=skip_ids or None,
         )
-        ndjson = save_campaign(result, artifacts)
-        print(f"[scan] probes saved → {ndjson} ({len(result.records)} records)")
+        if not result.records:
+            print("[scan] nothing to probe (empty campaign or all probe_ids already on disk)")
+        else:
+            ndjson = save_campaign(result, artifacts)
+            print(f"[scan] probes saved → {ndjson} ({len(result.records)} records)")
         print(f"[scan] request dumps → {dump_dir}")
         if result.canary_summary:
             print(
@@ -237,7 +238,6 @@ def cmd_scan(args: argparse.Namespace) -> int:
                     f"  canary {c.get('probe_id')}: {c.get('status')} "
                     f"→ {c.get('response_text', '')[:80]!r}"
                 )
-        # Print quick heuristic summary
         refusals = sum(
             1
             for r in result.records
@@ -246,10 +246,6 @@ def cmd_scan(args: argparse.Namespace) -> int:
         print(f"[scan] heuristic flags with refusal/gatekeeping: {refusals}/{len(result.records)}")
 
     if phase in {"analyze", "all"}:
-        if args.manage_vllm:
-            _maybe_start_recipe(args.detector_recipe)
-            # After switching recipe, force detector to use whatever is served
-            # Policy still requires Nemotron-class (not Qwen).
         compiled = Path(
             args.compiled
             or root / "workspace" / "compiled" / "tslit_analyzer_optimized.json"
@@ -278,12 +274,11 @@ def cmd_smoke(args: argparse.Namespace) -> int:
     from tslit_dspy.model_policy import assert_detection_model, is_adversary_origin
     from tslit_dspy.schemas import AnalysisResult
 
-    # Policy unit checks
-    assert_detection_model("nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4")
-    assert_detection_model("anthropic/claude-opus-4-6")
-    assert is_adversary_origin("Qwen/Qwen3.6-27B-FP8")
+    assert_detection_model("muse-glimmer:30b-bf16")
+    assert_detection_model("ollama_chat/llama3.1")
+    assert is_adversary_origin("qwen3.8:27b-mtp-bf16")
     try:
-        assert_detection_model("Qwen/Qwen3.6-27B-FP8")
+        assert_detection_model("qwen3.8:27b-mtp-bf16")
         print("FAIL: Qwen should be blocked", file=sys.stderr)
         return 1
     except ValueError:
@@ -307,20 +302,20 @@ def cmd_smoke(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="tslit",
-        description="TSLIT-DSPy on NVIDIA DGX Spark — non-adversary detection stack",
+        description="TSLIT-DSPy on NVIDIA DGX Spark — Ollama serving, non-adversary detection",
     )
     sub = p.add_subparsers(dest="command", required=True)
 
-    sub.add_parser("doctor", help="Host + vLLM + policy health")
+    sub.add_parser("doctor", help="Host + Ollama + policy health")
     sub.add_parser("policy", help="Print model-origin policy")
 
-    t = sub.add_parser("test-vllm", help="Catalog (+ optional invoke) against local vLLM")
+    t = sub.add_parser("test-ollama", help="Catalog (+ optional invoke) against local Ollama")
     t.add_argument("--skip-invoke", action="store_true")
 
     e = sub.add_parser("evaluate", help="Run detector eval on JSONL")
     e.add_argument("--test", default=None)
     e.add_argument("--output", default=None)
-    e.add_argument("--model", default="vllm")
+    e.add_argument("--model", default="ollama")
     e.add_argument("--model-base-url", default="")
     e.add_argument("--compiled", default=None)
     e.add_argument("--use-compiled", action="store_true")
@@ -330,7 +325,7 @@ def build_parser() -> argparse.ArgumentParser:
     o.add_argument("--train", default=None)
     o.add_argument("--dev", default=None)
     o.add_argument("--output", default=None)
-    o.add_argument("--compile-model", default="vllm")
+    o.add_argument("--compile-model", default="ollama")
     o.add_argument("--auto", default="light", choices=["light", "medium", "heavy"])
     o.add_argument("--num-threads", type=int, default=2)
     o.add_argument("--max-bootstrapped-demos", type=int, default=2)
@@ -347,30 +342,34 @@ def build_parser() -> argparse.ArgumentParser:
         "--phase",
         choices=["probe", "analyze", "all"],
         default="probe",
-        help="probe=target only; analyze=detector only; all=both (switches vLLM if --manage-vllm)",
+        help="probe=target only; analyze=detector only; all=both (same Ollama server)",
     )
     s.add_argument(
         "--target-model",
         default=None,
-        help="Target model id (default: Qwen/Qwen3.6-27B-FP8 — DGX qwen27)",
+        help="Target Ollama tag (default: qwen3.8:27b-mtp-bf16)",
     )
-    s.add_argument("--target-recipe", default="qwen27")
-    s.add_argument("--detector-recipe", default="nemotron-super")
     s.add_argument(
         "--detector-model",
-        default="vllm",
-        help="Detection LM alias/id (must pass non-adversary policy; default vllm/Nemotron)",
+        default="ollama",
+        help="Detection LM tag/alias (must pass non-adversary policy; default OLLAMA_MODEL)",
     )
-    s.add_argument("--base-url", default=None)
+    s.add_argument("--base-url", default=None, help="Ollama OpenAI base (default: …:11434/v1)")
     s.add_argument("--artifacts", default=None)
     s.add_argument("--compiled", default=None)
+    s.add_argument(
+        "--campaign",
+        default="mini",
+        choices=["mini", "plus", "sharp"],
+        help="mini=14; plus=old TSLIT leftover cells; sharp=clock-native dual-use grid",
+    )
+    s.add_argument(
+        "--skip-existing",
+        action="store_true",
+        help="Skip probe_ids already present under --artifacts (increment in place)",
+    )
     s.add_argument("--limit", type=int, default=None, help="Cap number of probes (debug)")
     s.add_argument("--max-tokens", type=int, default=1200)
-    s.add_argument(
-        "--manage-vllm",
-        action="store_true",
-        help="Start/switch Desktop vLLM recipes via scripts/vllm_recipe.sh",
-    )
     s.add_argument(
         "--no-canary",
         action="store_true",
@@ -382,9 +381,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="Log hygiene violations but do not abort the campaign",
     )
     s.add_argument(
-        "--no-fetch-rendered",
+        "--fetch-rendered",
         action="store_true",
-        help="Skip best-effort /tokenize rendered-prompt fetch from vLLM",
+        help="Try POST /tokenize (vLLM leftover; Ollama does not expose this)",
     )
 
     sub.add_parser("smoke", help="Offline import + policy checks (no GPU)")
@@ -393,7 +392,6 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     _load_env()
-    # Ensure project root is importable when run as script
     if str(PROJECT_ROOT) not in sys.path:
         sys.path.insert(0, str(PROJECT_ROOT))
 
@@ -402,7 +400,7 @@ def main(argv: list[str] | None = None) -> int:
     handlers = {
         "doctor": cmd_doctor,
         "policy": cmd_policy,
-        "test-vllm": cmd_test_vllm,
+        "test-ollama": cmd_test_ollama,
         "evaluate": cmd_evaluate,
         "optimize": cmd_optimize,
         "experiment": cmd_experiment,

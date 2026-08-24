@@ -1,7 +1,7 @@
 # Quickstart (DGX Spark)
 
 ```bash
-cd ~/Desktop/tslit-dspy-dgx
+cd ~/Desktop/code/tslit-dspy-dgx
 ./tslit install
 source .venv/bin/activate
 ```
@@ -14,13 +14,13 @@ source .venv/bin/activate
 ./tslit policy
 ```
 
-## Local vLLM detection path (American model)
+## Local Ollama detection path (American model)
 
 ```bash
-~/Desktop/start-vllm.sh nemotron-super
-# or: ~/Desktop/serve-local-llm.sh up nemotron-super
+# Ollama should already be running (this machine: :11434)
+ollama serve   # only if doctor says it is not reachable
 
-./tslit test-vllm
+./tslit test-ollama
 ./tslit evaluate --use-compiled --test workspace/data/dev.jsonl \
   --output workspace/evaluation/dgx_dev_eval.md
 ```
@@ -32,48 +32,81 @@ source .venv/bin/activate
 # → EXPERIMENT_RESULT: accuracy=… composite=…
 ```
 
+## Live model tests (scripts)
+
+Same Ollama, two roles: `--target-model` is the scan subject; `OLLAMA_MODEL` is the detector (Muse Glimmer). Do not swap those.
+
+```bash
+./scripts/run_tests.sh              # list
+./tslit test-probe                  # a) one probe vs Qwen
+./tslit test-campaign               # b) ~14-probe mini campaign + analyze
+./tslit test-campaign-plus          # leftover whitepaper cells (skip existing)
+./tslit test-campaign-sharp         # clock-native dual-use grid (20 cells)
+./tslit test-targets                # c) one probe each: Qwen, Ornith, DeepSeek
+./tslit test-eval                   # d) detector eval on dev.jsonl
+./tslit test-offline                # pytest + smoke + catalog
+./tslit test-experiment             # mini experiment on frozen test.jsonl
+```
+
+```bash
+./tslit test-probe ornith-1.5:35b
+./tslit test-campaign qwen3.8:27b-mtp-bf16
+./tslit test-targets --full         # mini campaign per served target (slow)
+./tslit test-eval test              # frozen test.jsonl instead of dev
+```
+
+Artifacts: `workspace/scans/{one_probe,mini,targets}/<tag>/`.
+
 ## Useful commands
 
 | What | Command |
 |------|---------|
 | Activate venv | `source .venv/bin/activate` |
 | Install / update | `./tslit install` |
-| Host + policy + vLLM | `./tslit doctor` |
-| Smoke-test vLLM | `./tslit test-vllm` |
-| Catalog only | `./tslit test-vllm --skip-invoke` |
+| Host + policy + Ollama | `./tslit doctor` |
+| Smoke-test Ollama | `./tslit test-ollama` |
+| Catalog only | `./tslit test-ollama --skip-invoke` |
 | Eval compiled detector | `./tslit evaluate --use-compiled` |
 | MIPROv2 compile (long) | `./tslit optimize --auto light` |
 | Autoresearch experiment | `./tslit experiment` / `--mini` |
+| One live probe | `./tslit test-probe` |
+| Mini campaign + analyze | `./tslit test-campaign` |
+| Plus campaign (old TSLIT leftover) | `./tslit test-campaign-plus` |
+| Sharp campaign (clock-native grid) | `./tslit test-campaign-sharp` |
+| Other box targets | `./tslit test-targets` |
+| Detector eval (JSONL) | `./tslit test-eval` |
+| Probe a target (raw) | `./tslit scan --phase all --target-model qwen3.8:27b-mtp-bf16` |
 | Unit tests | `./tslit pytest` |
 
 ## Ports on this machine
 
 | Service | Port |
 |---------|------|
-| vLLM inference | **8000** |
+| Ollama | **11434** |
 
-## Provider env (see `.env.example`)
+## Env (see `.env.example`)
 
 ```bash
-TSLIT_MODEL_PROVIDER=vllm
-VLLM_BASE_URL=http://127.0.0.1:8000/v1
-VLLM_MODEL=nvidia/NVIDIA-Nemotron-3-Super-120B-A12B-NVFP4
-VLLM_API_KEY=test
-VLLM_TIMEOUT_S=600
+OLLAMA_BASE_URL=http://127.0.0.1:11434
+OLLAMA_MODEL=muse-glimmer:30b-bf16
+OLLAMA_API_KEY=ollama
+OLLAMA_TIMEOUT_S=600
 ```
 
 ## Model policy (hard rule)
 
-**Detector brain** = Nemotron / GPT-OSS / Claude / OpenAI / Llama / Grok (etc.)  
-**Never** set `VLLM_MODEL` to Qwen recipes for the analyzer:
+**Detector brain** = Muse Glimmer / Llama / GPT-OSS / Nemotron / Claude / Grok  
+**Never** set `OLLAMA_MODEL` to Qwen / DeepSeek tags for the analyzer:
 
 ```bash
 # WRONG for detector:
-# ~/Desktop/start-vllm.sh qwen27
-# VLLM_MODEL=Qwen/Qwen3.6-27B-FP8
+# OLLAMA_MODEL=qwen3.8:27b-mtp-bf16
 
 # RIGHT for detector:
-~/Desktop/start-vllm.sh nemotron-super
+# OLLAMA_MODEL=muse-glimmer:30b-bf16
+
+# RIGHT for scan target:
+./tslit scan --target-model qwen3.8:27b-mtp-bf16
 ```
 
 Qwen and other adversary-origin models remain valid **scan targets** when you probe

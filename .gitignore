@@ -21,6 +21,10 @@ build/
 .vscode/
 *.swp
 
+# Local agent instruction files (machine-specific)
+AGENTS.md
+CLAUDE.md
+
 # Runtime logs
 *.log
 run.log

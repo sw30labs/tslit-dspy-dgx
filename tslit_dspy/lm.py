@@ -1,13 +1,8 @@
 """
-DSPy LM factory for TSLIT-DSPy on NVIDIA DGX Spark.
+DSPy LM factory for TSLIT-DSPy — local Ollama only.
 
-Priority (detection stack):
-  1. Explicit model string + provider routing
-  2. Local vLLM OpenAI-compatible server (default on DGX)
-  3. Ollama (optional)
-  4. Cloud litellm/DSPy providers (Anthropic, OpenAI, …)
-
-All detection-stack LMs pass model_policy.assert_detection_model().
+All detection-stack LMs pass model_policy.assert_detection_model() and are
+served by Ollama at OLLAMA_BASE_URL (default http://127.0.0.1:11434).
 """
 
 from __future__ import annotations
@@ -19,7 +14,6 @@ import platform
 import shutil
 import subprocess
 import sys
-import urllib.error
 import urllib.request
 from typing import Optional
 
@@ -27,64 +21,41 @@ import dspy
 
 from tslit_dspy.model_policy import (
     DEFAULT_DETECTION_MODEL,
-    DEFAULT_VLLM_BASE_URL,
+    DEFAULT_OLLAMA_BASE_URL,
+    DETECTION_ALIASES,
     assert_detection_model,
     is_allowed_detection_model,
+    strip_ollama_prefix,
 )
 
 logger = logging.getLogger(__name__)
 
-_ALIASES = frozenset({"local", "vllm", "detection", "default", "auto", ""})
 
-
-def _env_bool(name: str, default: bool = False) -> bool:
-    raw = os.getenv(name)
-    if raw is None:
-        return default
-    return raw.strip().lower() in ("1", "true", "yes", "on")
-
-
-def vllm_settings() -> dict:
+def ollama_settings() -> dict:
+    root = os.getenv("OLLAMA_BASE_URL", DEFAULT_OLLAMA_BASE_URL).rstrip("/")
+    if root.endswith("/v1"):
+        root = root[:-3]
     return {
-        "base_url": os.getenv("VLLM_BASE_URL", DEFAULT_VLLM_BASE_URL).rstrip("/"),
-        "model": os.getenv("VLLM_MODEL", DEFAULT_DETECTION_MODEL),
-        "api_key": os.getenv("VLLM_API_KEY", "test"),
-        "timeout": float(os.getenv("VLLM_TIMEOUT_S", "600")),
+        "base_url": root,
+        "openai_base_url": f"{root}/v1",
+        "model": os.getenv("OLLAMA_MODEL", DEFAULT_DETECTION_MODEL),
+        "api_key": os.getenv("OLLAMA_API_KEY", "ollama"),
+        "timeout": float(os.getenv("OLLAMA_TIMEOUT_S", "600")),
     }
+
+
+def ollama_chat_id(model: Optional[str] = None) -> str:
+    """Resolve a user/model string to `ollama_chat/<tag>` for DSPy."""
+    raw = (model or "").strip()
+    if not raw or raw.lower() in DETECTION_ALIASES:
+        raw = ollama_settings()["model"]
+    raw = strip_ollama_prefix(raw)
+    return f"ollama_chat/{raw}"
 
 
 def resolve_detection_model(model: Optional[str] = None) -> str:
     """Resolve the model id for a detection-stack role."""
-    raw = (model or "").strip()
-    if raw and raw.lower() not in _ALIASES:
-        return assert_detection_model(raw, role="detection")
-
-    provider = (os.getenv("TSLIT_MODEL_PROVIDER") or "vllm").strip().lower()
-    if provider == "ollama":
-        mid = os.getenv("OLLAMA_MODEL", "llama3.1")
-        if not mid.startswith("ollama"):
-            mid = f"ollama_chat/{mid}"
-        return assert_detection_model(mid, role="detection")
-    if provider in {"anthropic", "openai", "cloud"}:
-        mid = os.getenv("TSLIT_CLOUD_MODEL") or os.getenv(
-            "INFERENCE_MODEL", "anthropic/claude-opus-4-6"
-        )
-        return assert_detection_model(mid, role="detection")
-    return assert_detection_model(vllm_settings()["model"], role="detection")
-
-
-def _make_vllm_lm(model_id: str, *, role: str, base_url: Optional[str] = None) -> dspy.LM:
-    cfg = vllm_settings()
-    mid = assert_detection_model(model_id, role=role)
-    base = (base_url or cfg["base_url"]).rstrip("/")
-    dspy_model = mid if mid.startswith("openai/") else f"openai/{mid}"
-    logger.info(
-        "Using vLLM OpenAI-compatible LM model=%s base=%s role=%s",
-        mid,
-        base,
-        role,
-    )
-    return dspy.LM(dspy_model, api_base=base, api_key=cfg["api_key"])
+    return assert_detection_model(ollama_chat_id(model), role="detection")
 
 
 def make_lm(
@@ -94,98 +65,109 @@ def make_lm(
     model_base_url: Optional[str] = None,
     enforce_policy: bool = True,
 ) -> dspy.LM:
-    """Create a DSPy LM for the given role (detection by default)."""
-    raw = (model or "").strip()
-    provider = (os.getenv("TSLIT_MODEL_PROVIDER") or "vllm").strip().lower()
-
-    # Legacy Apple MLX path
-    if _env_bool("USE_LOCAL_MLX") or raw.lower() == "mlx":
-        mlx_base = os.getenv(
-            "MLX_INFERENCE_URL",
-            os.getenv("MLX_COMPILE_URL", "http://localhost:8080/v1"),
-        )
-        logger.info("Using local MLX server at %s (role=%s)", mlx_base, role)
-        return dspy.LM("openai/local", api_base=mlx_base, api_key="local")
-
-    looks_ollama = raw.lower().startswith("ollama")
-    looks_cloud = raw.lower().startswith(
-        ("anthropic/", "openai/gpt-", "openai/o1", "openai/o3", "azure/", "xai/")
-    )
-    # openai/gpt-oss and openai/<hf-id> used via vLLM need local base
-    is_gpt_oss = "gpt-oss" in raw.lower()
-    is_nemotron = "nemotron" in raw.lower() or raw.lower().startswith("nvidia/")
-    is_alias = raw.lower() in _ALIASES
-
-    # Ollama
-    if looks_ollama or provider == "ollama":
-        mid = raw if looks_ollama else os.getenv("OLLAMA_MODEL", "llama3.1")
-        if not mid.startswith("ollama"):
-            mid = f"ollama_chat/{mid}"
-        elif mid.startswith("ollama/") and not mid.startswith("ollama_chat/"):
-            mid = mid.replace("ollama/", "ollama_chat/", 1)
-        if enforce_policy:
-            assert_detection_model(mid, role=role)
-        base = model_base_url or os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-        logger.info("Using Ollama model=%s base=%s role=%s", mid, base, role)
-        return dspy.LM(mid, api_base=base)
-
-    # Local vLLM (DGX default) — aliases, Nemotron, GPT-OSS, or provider=vllm
-    use_vllm = (
-        is_alias
-        or is_nemotron
-        or is_gpt_oss
-        or (provider == "vllm" and not looks_cloud)
-        or (provider == "vllm" and raw == "")
-    )
-    if use_vllm and not looks_cloud:
-        mid = vllm_settings()["model"] if is_alias else (raw or vllm_settings()["model"])
-        if not enforce_policy:
-            # still warn
-            if not is_allowed_detection_model(mid):
-                logger.warning(
-                    "Model %s is blocked by origin policy for role=%s", mid, role
-                )
-        return _make_vllm_lm(mid, role=role, base_url=model_base_url)
-
-    # Cloud / litellm (Anthropic Claude, OpenAI GPT, etc.)
-    mid = raw or os.getenv("TSLIT_CLOUD_MODEL", "anthropic/claude-opus-4-6")
+    """Create a DSPy LM pointed at local Ollama."""
+    mid = ollama_chat_id(model)
     if enforce_policy:
         assert_detection_model(mid, role=role)
-    logger.info("Using cloud/provider LM model=%s role=%s", mid, role)
-    return dspy.LM(mid)
+    elif not is_allowed_detection_model(mid):
+        logger.warning("Model %s is blocked by origin policy for role=%s", mid, role)
+
+    cfg = ollama_settings()
+    base = (model_base_url or cfg["base_url"]).rstrip("/")
+    if base.endswith("/v1"):
+        base = base[:-3]
+    # Muse Glimmer (and other "thinking" Ollama tags) dump the whole token
+    # budget into a reasoning channel and then emit `{}` if DSPy also turns
+    # on Ollama format=json. Detector calls need a JSON object in `content`.
+    think = (os.getenv("OLLAMA_THINK") or "").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    max_tokens = int(os.getenv("OLLAMA_MAX_TOKENS", "4096"))
+    logger.info(
+        "Using Ollama LM model=%s base=%s role=%s think=%s max_tokens=%s",
+        mid,
+        base,
+        role,
+        think,
+        max_tokens,
+    )
+    return dspy.LM(
+        mid,
+        api_base=base,
+        api_key=cfg["api_key"],
+        temperature=0.0,
+        max_tokens=max_tokens,
+        timeout=cfg["timeout"],
+        num_retries=2,
+        think=think,
+        drop_params=True,
+    )
 
 
-def health_check_vllm(base_url: Optional[str] = None, timeout: float = 5.0) -> dict:
-    """Probe local vLLM /v1/models. Returns status dict (never raises)."""
-    cfg = vllm_settings()
-    base = (base_url or cfg["base_url"]).rstrip("/")
-    url = f"{base}/models"
+def health_check_ollama(base_url: Optional[str] = None, timeout: float = 5.0) -> dict:
+    """Probe local Ollama catalog. Returns status dict (never raises)."""
+    cfg = ollama_settings()
+    root = (base_url or cfg["base_url"]).rstrip("/")
+    if root.endswith("/v1"):
+        root = root[:-3]
+    configured = strip_ollama_prefix(cfg["model"])
     result: dict = {
         "ok": False,
-        "base_url": base,
-        "configured_model": cfg["model"],
+        "base_url": root,
+        "openai_base_url": f"{root}/v1",
+        "configured_model": configured,
         "models": [],
         "error": None,
         "detection_allowed": [],
         "detection_blocked": [],
     }
-    try:
-        req = urllib.request.Request(
-            url,
-            headers={"Authorization": f"Bearer {cfg['api_key']}"},
-        )
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            payload = json.loads(resp.read().decode("utf-8"))
-        models = [m.get("id", "") for m in payload.get("data", [])]
-        result["models"] = models
-        result["ok"] = True
-        result["detection_allowed"] = [m for m in models if is_allowed_detection_model(m)]
-        result["detection_blocked"] = [
-            m for m in models if not is_allowed_detection_model(m)
-        ]
-    except Exception as exc:  # noqa: BLE001 — health probe
-        result["error"] = str(exc)
+
+    models: list[str] = []
+    last_err: Optional[str] = None
+    for url, parser in (
+        (f"{root}/api/tags", _models_from_tags),
+        (f"{root}/v1/models", _models_from_openai),
+    ):
+        try:
+            req = urllib.request.Request(
+                url,
+                headers={"Authorization": f"Bearer {cfg['api_key']}"},
+            )
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            models = parser(payload)
+            last_err = None
+            break
+        except Exception as exc:  # noqa: BLE001 — health probe
+            last_err = str(exc)
+
+    if last_err and not models:
+        result["error"] = last_err
+        return result
+
+    result["ok"] = True
+    result["models"] = models
+    result["detection_allowed"] = [m for m in models if is_allowed_detection_model(m)]
+    result["detection_blocked"] = [
+        m for m in models if not is_allowed_detection_model(m)
+    ]
     return result
+
+
+def _models_from_tags(payload: dict) -> list[str]:
+    names = []
+    for m in payload.get("models", []) or []:
+        name = m.get("name") or m.get("model") or ""
+        if name:
+            names.append(name)
+    return names
+
+
+def _models_from_openai(payload: dict) -> list[str]:
+    return [m.get("id", "") for m in payload.get("data", []) if m.get("id")]
 
 
 def host_preflight() -> list[str]:
@@ -196,6 +178,8 @@ def host_preflight() -> list[str]:
     machine = platform.machine().lower()
     if machine not in {"aarch64", "arm64"}:
         findings.append(f"DGX Spark is typically aarch64 (found {machine})")
+    if shutil.which("ollama") is None:
+        findings.append("ollama not on PATH")
     if shutil.which("nvidia-smi") is None:
         findings.append("nvidia-smi not on PATH")
     else:
