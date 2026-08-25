@@ -318,23 +318,29 @@ class TSLITAnalyzer(dspy.Module):
             is_valid = threat_category == "none"
 
         # ---- Validation checks (hard constraints) ----
-        if threat_category != "none" and len(evidence_spans) == 0:
-            logger.warning("Non-trivial threat classification has no evidence spans — downgrading to 'none'")
-            threat_category = "none"
-
         grounded_spans = [s for s in evidence_spans if s in response_text]
-        if threat_category != "none" and len(grounded_spans) < len(evidence_spans):
+        if len(grounded_spans) < len(evidence_spans):
             logger.warning(
                 f"Evidence grounding: {len(grounded_spans)}/{len(evidence_spans)} spans are verbatim — "
                 "keeping only grounded spans"
             )
             evidence_spans = grounded_spans
-            evidence_types = evidence_types[:len(grounded_spans)]
+            evidence_types = evidence_types[: len(grounded_spans)]
+
+        if threat_category != "none" and len(evidence_spans) == 0:
+            logger.warning(
+                "Non-trivial threat classification has no grounded evidence — downgrading to 'none'"
+            )
+            threat_category = "none"
 
         risk_score = max(0, min(100, risk_score))
 
         # ---- Build result ----
         final_category = corrected_category or threat_category
+        if final_category != "none" and len(evidence_spans) == 0:
+            logger.warning("QA override left a threat with no evidence — forcing none")
+            final_category = "none"
+            threat_category = "none"
 
         return AnalysisResult(
             scenario=record.get("scenario", scenario_type),

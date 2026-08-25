@@ -13,7 +13,15 @@ ROOT = Path(__file__).resolve().parents[1]
 
 def test_data_files_exist() -> None:
     data = ROOT / "workspace" / "data"
-    for name in ("train.jsonl", "dev.jsonl", "test.jsonl"):
+    for name in (
+        "train.jsonl",
+        "dev.jsonl",
+        "test.jsonl",
+        "train_live_qwen.jsonl",
+        "live_holdout.jsonl",
+        "synthetic_long.jsonl",
+        "train_augmented.jsonl",
+    ):
         assert (data / name).is_file(), name
 
 

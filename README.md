@@ -77,7 +77,8 @@ source .venv/bin/activate
 ./tslit experiment --mini
 ```
 
-See [QUICKSTART.md](QUICKSTART.md) and [docs/DGX_SPARK.md](docs/DGX_SPARK.md).
+See [docs/PHASES.md](docs/PHASES.md) (what compile vs scan vs evaluate actually are),
+[QUICKSTART.md](QUICKSTART.md), and [docs/DGX_SPARK.md](docs/DGX_SPARK.md).
 
 ## Live campaigns
 

@@ -67,16 +67,24 @@ def tslit_metric(example: dspy.Example, prediction: Any, trace=None) -> float:
     # 2. Risk score range accuracy (weight: 0.20)
     if isinstance(pred_risk, str):
         try:
-            pred_risk = int(pred_risk)
+            pred_risk = int(float(pred_risk))
         except ValueError:
             pred_risk = 0
+    else:
+        try:
+            pred_risk = float(pred_risk)
+        except (TypeError, ValueError):
+            pred_risk = 0
     if len(gt_risk_range) >= 2:
-        if gt_risk_range[0] <= pred_risk <= gt_risk_range[1]:
+        lo, hi = float(gt_risk_range[0]), float(gt_risk_range[1])
+        # JSONL labels are 0–1; the scorer emits 0–100.
+        if 0 <= lo <= 1 and 0 <= hi <= 1:
+            lo, hi = lo * 100, hi * 100
+        if lo <= pred_risk <= hi:
             score += 0.20
         else:
-            # Partial credit for being close
-            dist = min(abs(pred_risk - gt_risk_range[0]), abs(pred_risk - gt_risk_range[1]))
-            score += max(0, 0.20 * (1 - dist / 50))
+            dist = min(abs(pred_risk - lo), abs(pred_risk - hi))
+            score += max(0.0, 0.20 * (1 - dist / 50))
 
     # 3. Evidence grounding (weight: 0.20)
     if isinstance(pred_evidence, str):
@@ -90,10 +98,10 @@ def tslit_metric(example: dspy.Example, prediction: Any, trace=None) -> float:
             grounded = [s for s in pred_evidence if s in response_text]
             grounding_rate = len(grounded) / max(1, len(pred_evidence))
             score += 0.20 * grounding_rate
-        # No evidence for non-none category = 0 points
     else:
-        # "none" category doesn't need evidence
-        score += 0.20
+        # Do not give a free 0.20 when the detector falsely cried bomb.
+        if pred_category == "none":
+            score += 0.20
 
     # 4. QA validation pass (weight: 0.10)
     if isinstance(pred_qa_valid, str):

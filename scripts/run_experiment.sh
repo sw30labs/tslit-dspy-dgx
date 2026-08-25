@@ -42,9 +42,11 @@ COMPILED="$REPO_DIR/workspace/compiled/tslit_analyzer_optimized.json"
 TEST_SET="$REPO_DIR/workspace/data/test.jsonl"
 TRAIN_SET="$REPO_DIR/workspace/data/train.jsonl"
 DEV_SET="$REPO_DIR/workspace/data/dev.jsonl"
+LIVE_HOLDOUT="$REPO_DIR/workspace/data/live_holdout.jsonl"
 EVAL_OUTPUT="$REPO_DIR/workspace/evaluation/autoresearch_eval.md"
 EVAL_JSON="$REPO_DIR/workspace/evaluation/autoresearch_eval.json"
 HASH_FILE="$REPO_DIR/workspace/.test_jsonl_hash"
+LIVE_HASH_FILE="$REPO_DIR/workspace/.live_holdout_hash"
 
 MINI_MODE=false
 if [[ "${1:-}" == "--mini" ]]; then
@@ -73,6 +75,67 @@ guard_test_set() {
             echo "EXPERIMENT_RESULT: accuracy=0.00 composite=0.00 category_f1=0.00 qa_pass=0.00 grounding=0.00"
             exit 1
         fi
+    fi
+}
+
+# ---------------------------------------------------------------------------
+# Safety: freeze live Qwen holdout (never in MIPRO)
+# ---------------------------------------------------------------------------
+guard_live_holdout() {
+    if [[ ! -f "$LIVE_HOLDOUT" ]]; then
+        echo "[guard] live_holdout.jsonl absent — skip"
+        return 0
+    fi
+    local current_hash
+    current_hash=$(md5 -q "$LIVE_HOLDOUT" 2>/dev/null || md5sum "$LIVE_HOLDOUT" 2>/dev/null | awk '{print $1}')
+
+    if [[ ! -f "$LIVE_HASH_FILE" ]]; then
+        echo "$current_hash" > "$LIVE_HASH_FILE"
+        echo "[guard] Recorded live_holdout hash: $current_hash"
+    else
+        local stored_hash
+        stored_hash=$(tr -d '[:space:]' < "$LIVE_HASH_FILE")
+        if [[ "$current_hash" != "$stored_hash" ]]; then
+            echo "ERROR: workspace/data/live_holdout.jsonl has been modified!" >&2
+            echo "ERROR: Stored hash: $stored_hash" >&2
+            echo "ERROR: Current hash: $current_hash" >&2
+            echo "ERROR: This file is the Qwen verdict set. Never train on it." >&2
+            _printed_result=true
+            echo "EXPERIMENT_RESULT: accuracy=0.00 composite=0.00 category_f1=0.00 qa_pass=0.00 grounding=0.00"
+            exit 1
+        fi
+    fi
+}
+
+assert_train_excludes_holdout() {
+    if [[ ! -f "$LIVE_HOLDOUT" ]]; then
+        return 0
+    fi
+    if ! python3 -c "
+import json, sys
+hold_ids, hold_eids = set(), set()
+for line in open('$LIVE_HOLDOUT'):
+    if not line.strip():
+        continue
+    r = json.loads(line)
+    if r.get('probe_id'):
+        hold_ids.add(r['probe_id'])
+    if r.get('example_id'):
+        hold_eids.add(r['example_id'])
+leaks = []
+for line in open('$EFFECTIVE_TRAIN'):
+    if not line.strip():
+        continue
+    r = json.loads(line)
+    if r.get('probe_id') in hold_ids or r.get('example_id') in hold_eids:
+        leaks.append(r.get('example_id'))
+if leaks:
+    print('ERROR: train set contains live_holdout ids:', leaks, file=sys.stderr)
+    sys.exit(1)
+"; then
+        _printed_result=true
+        echo "EXPERIMENT_RESULT: accuracy=0.00 composite=0.00 category_f1=0.00 qa_pass=0.00 grounding=0.00"
+        exit 1
     fi
 }
 
@@ -296,8 +359,10 @@ echo "========================================="
 cd "$REPO_DIR"
 
 guard_test_set
+guard_live_holdout
 parse_config
 resolve_train_set
+assert_train_excludes_holdout
 
 if [[ "$MINI_MODE" == "true" ]]; then
     echo "[mini] Skipping optimization. Using existing compiled model."

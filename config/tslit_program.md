@@ -71,6 +71,7 @@ Rules:
 ## What You CANNOT Touch (LOCKED)
 
 - `workspace/data/test.jsonl` — FROZEN. The guard in `run_experiment.sh` will reject any modification and score you 0.00. Never read it to memorize answers.
+- `workspace/data/live_holdout.jsonl` — FROZEN Qwen verdict set. Never train on it. Hash-guarded like `test.jsonl`.
 - `workspace/data/dev.jsonl` — Used internally by MIPROv2. Do not modify.
 - `tslit_dspy/*.py` — Core pipeline code. Do not modify.
 

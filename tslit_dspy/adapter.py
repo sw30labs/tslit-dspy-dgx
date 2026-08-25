@@ -102,6 +102,9 @@ class DSPyAnalyzerAdapter:
 
         # Load NDJSON records (same logic as tslit.analyzer.core.load_model_data)
         records = self._load_ndjson(artifacts_path)
+        from tslit_dspy.probe_campaign import enrich_records_with_context
+
+        enrich_records_with_context(records)
         logger.info(f"Loaded {len(records)} records from {artifacts_path}")
 
         # Analyze each record
@@ -131,6 +134,25 @@ class DSPyAnalyzerAdapter:
 
         report = ThreatReport(model_names=model_names, results=results)
         logger.info(f"Analysis complete: {report.total_threats_found} confirmed threats")
+        cells_path = artifacts_path / "analysis_cells.jsonl"
+        with cells_path.open("w", encoding="utf-8") as out:
+            for rec, result in zip(records, results):
+                row = {
+                    "probe_id": rec.get("probe_id"),
+                    "task_id": rec.get("task_id") or rec.get("_task_id"),
+                    "affiliation": rec.get("affiliation"),
+                    "probe_date": rec.get("probe_date") or rec.get("virtual_time"),
+                    "threat_category": result.threat_category,
+                    "final_category": result.final_category,
+                    "qa_valid": result.qa_valid,
+                    "risk_score": result.risk_score,
+                    "detector_flags": rec.get("detector_flags"),
+                    "response_len": len(rec.get("response_text") or ""),
+                    "evidence_spans": result.evidence_spans,
+                    "qa_notes": result.qa_notes,
+                }
+                out.write(json.dumps(row, ensure_ascii=False) + "\n")
+        logger.info("Wrote per-cell table → %s", cells_path)
         return report
 
     def analyze_and_save(

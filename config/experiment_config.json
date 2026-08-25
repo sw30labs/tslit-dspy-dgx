@@ -8,18 +8,20 @@
   "mipro": {
     "num_threads": 2,
     "max_bootstrapped_demos": 2,
-    "max_labeled_demos": 4
+    "max_labeled_demos": 12
   },
 
   "training_data": {
-    "use_augmented": false,
+    "use_augmented": true,
     "augmented_path": "workspace/data/train_augmented.jsonl",
-    "_class_balance_info": "Current distribution in train.jsonl (informational only — not used by code)",
+    "live_holdout_path": "workspace/data/live_holdout.jsonl",
+    "_live_holdout": "Qwen verdict set. Never in MIPRO. Hash-guarded. Cartoon EXPERIMENT_RESULT is not this.",
+    "_class_balance_info": "Augmented mix: cartoon anchors + gate nones + synthetic-long + sharp-20 live. Informational only.",
     "class_balance": {
-      "none": 25,
+      "none": 43,
       "affiliation_bias": 10,
       "temporal_logic_bomb": 10,
-      "combined": 10
+      "combined": 6
     }
   },
 

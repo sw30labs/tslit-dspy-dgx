@@ -69,10 +69,20 @@ def cmd_doctor(_: argparse.Namespace) -> int:
         print("  Start: ollama serve")
 
     data = PROJECT_ROOT / "workspace" / "data"
-    for name in ("train.jsonl", "dev.jsonl", "test.jsonl"):
+    for name in (
+        "train.jsonl",
+        "dev.jsonl",
+        "test.jsonl",
+        "train_live_qwen.jsonl",
+        "live_holdout.jsonl",
+        "synthetic_long.jsonl",
+        "train_augmented.jsonl",
+    ):
         p = data / name
         status = "OK" if p.is_file() else "MISSING"
         print(f"  data {name}: {status}")
+    hold_hash = PROJECT_ROOT / "workspace" / ".live_holdout_hash"
+    print(f"  live_holdout hash: {'OK' if hold_hash.is_file() else 'MISSING'}")
 
     compiled = PROJECT_ROOT / "workspace" / "compiled" / "tslit_analyzer_optimized.json"
     print(f"  compiled artifact: {'OK' if compiled.is_file() else 'missing (run optimize)'}")
@@ -142,12 +152,35 @@ def cmd_evaluate(args: argparse.Namespace) -> int:
     return 0
 
 
+def _experiment_config() -> dict:
+    path = PROJECT_ROOT / "config" / "experiment_config.json"
+    if not path.is_file():
+        return {}
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
 def cmd_optimize(args: argparse.Namespace) -> int:
     from tslit_dspy.optimize import run_optimization
 
     root = PROJECT_ROOT
+    cfg = _experiment_config()
+    td = cfg.get("training_data") or {}
+    mipro = cfg.get("mipro") or {}
+    if args.train:
+        train_path = Path(args.train)
+    elif td.get("use_augmented"):
+        train_path = root / td.get("augmented_path", "workspace/data/train_augmented.jsonl")
+        if not train_path.is_file():
+            print(f"[optimize] augmented mix missing at {train_path} — falling back to train.jsonl")
+            train_path = root / "workspace" / "data" / "train.jsonl"
+    else:
+        train_path = root / "workspace" / "data" / "train.jsonl"
+    labeled = args.max_labeled_demos
+    if labeled is None:
+        labeled = int(mipro.get("max_labeled_demos", 12))
+    print(f"[optimize] train={train_path} max_labeled_demos={labeled}")
     run_optimization(
-        train_path=Path(args.train or root / "workspace" / "data" / "train.jsonl"),
+        train_path=train_path,
         dev_path=Path(args.dev or root / "workspace" / "data" / "dev.jsonl"),
         output_path=Path(
             args.output
@@ -157,7 +190,7 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         auto=args.auto,
         num_threads=args.num_threads,
         max_bootstrapped_demos=args.max_bootstrapped_demos,
-        max_labeled_demos=args.max_labeled_demos,
+        max_labeled_demos=labeled,
     )
     return 0
 
@@ -329,7 +362,12 @@ def build_parser() -> argparse.ArgumentParser:
     o.add_argument("--auto", default="light", choices=["light", "medium", "heavy"])
     o.add_argument("--num-threads", type=int, default=2)
     o.add_argument("--max-bootstrapped-demos", type=int, default=2)
-    o.add_argument("--max-labeled-demos", type=int, default=4)
+    o.add_argument(
+        "--max-labeled-demos",
+        type=int,
+        default=None,
+        help="Labeled demos per module (default: experiment_config mipro.max_labeled_demos)",
+    )
 
     x = sub.add_parser("experiment", help="scripts/run_experiment.sh wrapper")
     x.add_argument("--mini", action="store_true")
@@ -369,7 +407,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Skip probe_ids already present under --artifacts (increment in place)",
     )
     s.add_argument("--limit", type=int, default=None, help="Cap number of probes (debug)")
-    s.add_argument("--max-tokens", type=int, default=1200)
+    s.add_argument("--max-tokens", type=int, default=2048)
     s.add_argument(
         "--no-canary",
         action="store_true",
