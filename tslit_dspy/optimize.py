@@ -151,6 +151,13 @@ def run_optimization(
     Default compile LM is local Ollama (Meta Muse Glimmer; US / non-adversary).
     Adversary-origin models are blocked by model_policy.
     """
+    try:
+        import optuna  # noqa: F401
+    except ImportError as exc:
+        raise SystemExit(
+            "MIPROv2 requires optuna. Install with: pip install 'optuna>=3.0'"
+        ) from exc
+
     logger.info(f"Compile model: {compile_model}")
     logger.info(f"Auto setting: {auto}")
 
