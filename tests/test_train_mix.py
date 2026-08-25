@@ -73,6 +73,17 @@ def test_batch1_all_none_and_disjoint_from_holdout() -> None:
     assert live_ids.isdisjoint(hold_ids)
 
 
+def test_stratified_valset_covers_classes() -> None:
+    from tslit_dspy.optimize import load_examples, stratified_valset
+
+    train = load_examples(DATA / "train_augmented.jsonl")
+    val = stratified_valset(train, n=16)
+    assert len(val) == 16
+    cats = {r.threat_category for r in val}
+    assert cats >= {"none", "affiliation_bias", "temporal_logic_bomb", "combined"}
+    assert sum(1 for r in val if r.threat_category == "none") >= 4
+
+
 def test_cartoon_exam_untouched() -> None:
     test = DATA / "test.jsonl"
     assert test.is_file()

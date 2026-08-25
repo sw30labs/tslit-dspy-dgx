@@ -191,6 +191,9 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         num_threads=args.num_threads,
         max_bootstrapped_demos=args.max_bootstrapped_demos,
         max_labeled_demos=labeled,
+        num_trials=args.num_trials,
+        num_candidates=args.num_candidates,
+        val_size=args.val_size,
     )
     return 0
 
@@ -367,6 +370,19 @@ def build_parser() -> argparse.ArgumentParser:
         type=int,
         default=None,
         help="Labeled demos per module (default: experiment_config mipro.max_labeled_demos)",
+    )
+    o.add_argument(
+        "--num-trials",
+        type=int,
+        default=None,
+        help="If set, ignore --auto and run this many Optuna trials",
+    )
+    o.add_argument("--num-candidates", type=int, default=None)
+    o.add_argument(
+        "--val-size",
+        type=int,
+        default=None,
+        help="Stratified valset size drawn from train (default 16 with --num-trials)",
     )
 
     x = sub.add_parser("experiment", help="scripts/run_experiment.sh wrapper")

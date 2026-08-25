@@ -19,7 +19,10 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import random
+import signal
 import sys
+from collections import defaultdict
 from pathlib import Path
 
 import os
@@ -66,6 +69,8 @@ def load_examples(filepath: Path) -> list[dspy.Example]:
                 # Ground truth labels (for metric computation)
                 threat_category=data["threat_category"],
                 risk_score_range=data.get("risk_score_range", [0, 100]),
+                example_id=data.get("example_id", "unknown"),
+                source=data.get("source", ""),
             ).with_inputs(
                 "response_text", "probe_date", "affiliation",
                 "scenario_type", "detector_flags", "baseline_response"
@@ -74,6 +79,58 @@ def load_examples(filepath: Path) -> list[dspy.Example]:
 
     logger.info(f"Loaded {len(examples)} examples from {filepath}")
     return examples
+
+
+def stratified_valset(examples: list[dspy.Example], n: int = 16, seed: int = 9) -> list[dspy.Example]:
+    """Small mix-val so Muse 30B trials finish; keep live none in the bag."""
+    by: dict[str, list[dspy.Example]] = defaultdict(list)
+    for ex in examples:
+        by[str(ex.threat_category)].append(ex)
+    rng = random.Random(seed)
+    quotas = {
+        "none": max(4, n // 2),
+        "affiliation_bias": max(2, n // 8),
+        "temporal_logic_bomb": max(2, n // 8),
+        "combined": max(2, n // 8),
+    }
+    # Scale quotas to exactly n.
+    total = sum(quotas.values())
+    while total > n:
+        for k in ("none", "combined", "affiliation_bias", "temporal_logic_bomb"):
+            if total <= n:
+                break
+            if quotas[k] > 1:
+                quotas[k] -= 1
+                total -= 1
+    out: list[dspy.Example] = []
+    for cat, k in quotas.items():
+        pool = list(by.get(cat, []))
+        rng.shuffle(pool)
+        if cat == "none":
+            live = [e for e in pool if "live" in str(getattr(e, "source", "") or "")]
+            rest = [e for e in pool if e not in live]
+            pool = live + rest
+        out.extend(pool[:k])
+    if len(out) < n:
+        leftover = [e for e in examples if e not in out]
+        rng.shuffle(leftover)
+        out.extend(leftover[: n - len(out)])
+    logger.info(
+        "Stratified valset n=%s cats=%s",
+        len(out),
+        {c: sum(1 for e in out if e.threat_category == c) for c in quotas},
+    )
+    return out
+
+
+def latest_mipro_program(log_dir: Path) -> Path | None:
+    folder = log_dir / "evaluated_programs"
+    if not folder.is_dir():
+        return None
+    files = list(folder.glob("program_*.json"))
+    if not files:
+        return None
+    return max(files, key=lambda p: p.stat().st_mtime)
 
 
 def wrapped_metric(example: dspy.Example, prediction, trace=None) -> float:
@@ -145,6 +202,9 @@ def run_optimization(
     num_threads: int = 4,
     max_bootstrapped_demos: int = 4,
     max_labeled_demos: int = 8,
+    num_trials: int | None = None,
+    num_candidates: int | None = None,
+    val_size: int | None = None,
 ):
     """Run MIPROv2 optimization and save compiled model.
 
@@ -185,21 +245,54 @@ def run_optimization(
     # Run MIPROv2 optimization
     logger.info("Starting MIPROv2 optimization...")
     checkpoint_path = output_path.with_stem(output_path.stem + "_checkpoint")
-    optimizer = CheckpointMIPROv2(
-        metric=wrapped_metric,
-        auto=auto,
-        num_threads=num_threads,
-        max_bootstrapped_demos=max_bootstrapped_demos,
-        max_labeled_demos=max_labeled_demos,
-        track_stats=True,
-        checkpoint_path=checkpoint_path,
-    )
+    log_dir = output_path.parent / (output_path.stem + "_mipro_logs")
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    mipro_kwargs: dict = {
+        "metric": wrapped_metric,
+        "num_threads": num_threads,
+        "max_bootstrapped_demos": max_bootstrapped_demos,
+        "max_labeled_demos": max_labeled_demos,
+        "track_stats": True,
+        "checkpoint_path": checkpoint_path,
+        "log_dir": str(log_dir),
+    }
+    compile_kwargs: dict = {"trainset": train_examples}
+    if num_trials:
+        mipro_kwargs["auto"] = None
+        mipro_kwargs["num_candidates"] = num_candidates or 3
+        compile_kwargs["num_trials"] = num_trials
+        logger.info("Manual MIPRO: num_trials=%s num_candidates=%s", num_trials, mipro_kwargs["num_candidates"])
+    else:
+        mipro_kwargs["auto"] = auto
+
+    val_n = val_size if val_size is not None else (16 if num_trials else None)
+    if val_n:
+        compile_kwargs["valset"] = stratified_valset(train_examples, n=val_n)
+        compile_kwargs["minibatch_size"] = min(35, val_n)
+
+    optimizer = CheckpointMIPROv2(**mipro_kwargs)
+
+    def _persist_from_logs(reason: str) -> TSLITAnalyzer | None:
+        latest = latest_mipro_program(log_dir)
+        if latest is None:
+            return None
+        logger.warning("%s — loading latest MIPRO program %s", reason, latest)
+        prog = TSLITAnalyzer()
+        prog.load(str(latest))
+        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
+        prog.save(str(checkpoint_path))
+        return prog
+
+    def _on_term(signum, _frame):
+        logger.warning("Received signal %s — persisting MIPRO candidate", signum)
+        _persist_from_logs(f"signal {signum}")
+        raise KeyboardInterrupt
+
+    signal.signal(signal.SIGTERM, _on_term)
 
     try:
-        compiled_analyzer = optimizer.compile(
-            analyzer,
-            trainset=train_examples,
-        )
+        compiled_analyzer = optimizer.compile(analyzer, **compile_kwargs)
     except KeyboardInterrupt:
         logger.warning("Optimization interrupted — saving best program found so far...")
         best = optimizer._best_holder[0]["program"]
@@ -208,13 +301,15 @@ def run_optimization(
             best.save(str(checkpoint_path))
             logger.info(f"Best-so-far saved to {checkpoint_path}")
             compiled_analyzer = best
-        elif checkpoint_path.exists():
-            logger.info(f"Loading checkpoint from {checkpoint_path}")
-            compiled_analyzer = TSLITAnalyzer()
-            compiled_analyzer.load(str(checkpoint_path))
         else:
-            logger.error("No checkpoint available. Exiting.")
-            raise
+            compiled_analyzer = _persist_from_logs("interrupt")
+            if compiled_analyzer is None and checkpoint_path.exists():
+                logger.info(f"Loading checkpoint from {checkpoint_path}")
+                compiled_analyzer = TSLITAnalyzer()
+                compiled_analyzer.load(str(checkpoint_path))
+            if compiled_analyzer is None:
+                logger.error("No checkpoint available. Exiting.")
+                raise
 
     # Save compiled model
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -285,6 +380,18 @@ def main():
         "--max-labeled-demos", type=int, default=8,
         help="Max labeled demonstrations per module (default: 8)"
     )
+    parser.add_argument(
+        "--num-trials", type=int, default=None,
+        help="If set, ignore --auto and run this many Optuna trials (plus default eval).",
+    )
+    parser.add_argument(
+        "--num-candidates", type=int, default=None,
+        help="Instruction/few-shot candidate count when --num-trials is set (default 3).",
+    )
+    parser.add_argument(
+        "--val-size", type=int, default=None,
+        help="Stratified valset size from train (default 16 when --num-trials is set).",
+    )
 
     args = parser.parse_args()
 
@@ -297,6 +404,9 @@ def main():
         num_threads=args.num_threads,
         max_bootstrapped_demos=args.max_bootstrapped_demos,
         max_labeled_demos=args.max_labeled_demos,
+        num_trials=args.num_trials,
+        num_candidates=args.num_candidates,
+        val_size=args.val_size,
     )
 
 
