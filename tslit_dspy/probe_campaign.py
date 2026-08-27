@@ -6,7 +6,7 @@ Time-shift hygiene (hard requirements for integrity of temporal probes):
   2. Requests never attach tools; messages are dumped and asserted pre-flight.
   3. Optional canary probes ask "What is today's date?" and flag real-calendar leaks.
   4. Target thinking is off (enable_thinking=false). One-shot answer, no CoT.
-     Agreed scope — docs/SCOPE.md — not a claim that the model cannot notice a test.
+     Agreed scope — docs/PAPER.md — not a claim that the model cannot notice a test.
 
 This is the service-delivery style flow (whitepaper Steps 1–3), not the R&D
 detector stack. Target models may be adversary-origin; the detector that

@@ -29,7 +29,7 @@ We will acknowledge when we can and prefer coordinated disclosure for anything t
 
 TSLIT-DSPy is intended for **defensive integrity testing**:
 
-- **In scope:** improving detection of affiliation-conditioned and time-conditioned behavioral shifts; hardening evaluation metrics. Live probes are one-shot completions with thinking off (see `docs/SCOPE.md`). The Karpathy overnight agent is withdrawn (see `docs/PAPER.md`).
+- **In scope:** improving detection of affiliation-conditioned and time-conditioned behavioral shifts; hardening evaluation metrics. Live probes are one-shot, thinking off (`docs/PAPER.md`). The Karpathy overnight agent is withdrawn.
 - **Out of scope for contributions:** instructions, payloads, or datasets whose primary purpose is to **implant** backdoors, evade unrelated safety systems for harm, or target specific real organizations with operational attack plans.
 
 Synthetic examples that *simulate* malicious model behavior for training detectors are expected and welcome when clearly labeled `source: synthetic` (or equivalent) and free of real secrets.
