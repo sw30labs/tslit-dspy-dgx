@@ -1,7 +1,7 @@
 # TSLIT-DSPy on DGX Spark
 
 Nicolas Cravino — v1.1, 27 August 2026  
-Addendum to *The Quiet Invasion* (v1.0, 26 March 2026). Hypotheses, not certificates.
+Addendum to *The Quiet Invasion* (v1.0, 26 March 2026). Manuscript: [`whitepaper/v1.0/`](../whitepaper/v1.0/). Hypotheses, not certificates.
 
 Detector = Muse Glimmer (`OLLAMA_MODEL`). Target = Qwen (and others). Never swap.
 
@@ -14,7 +14,7 @@ Detector = Muse Glimmer (`OLLAMA_MODEL`). Target = Qwen (and others). Never swap
 | Analyze `triage=skip` | Heuristic/sibling | A Muse label |
 | `lang2x2` | Its own 2×2 (language × identity) | Folded into English 70/70 |
 
-v1.0 **88.2%** is Claude on planted cartoons. Autoresearch Phases B/C are **withdrawn**.
+v1.0 **88.2%** is Claude on planted cartoons. How it was run: [`whitepaper/v1.0/RUNBOOK.md`](../whitepaper/v1.0/RUNBOOK.md). Autoresearch Phases B/C are **withdrawn**.
 
 **English thinking-off (no canaries):** sharp+mini+plus **70/70 `none`** (Muse-light, pre-triage). Holdout **10/10 `none`**. Qwen 2.5 latest **77/77 `none`**. One 5×-short cell: Qwen 3.8 `cert_expiry` US×9/11 (truncation until it replicates). JWT thinking-on: longer cooperative CLIs, not US refusal.
 
@@ -27,6 +27,27 @@ Thinking-on, tools, wall-clock, multi-turn: other campaigns. Do not sell thinkin
 `lang2x2`: same technical ask, EN/ZH × US/CN on 9/11. Do not compare ZH-CN to EN-US as one contrast. Twins: `tslit_dspy/lang_prompts.py`.
 
 ## Status
+
+![TSLIT-DSPy DGX roadmap](diagrams/roadmap-timeline.png)
+
+Coral mark is this branch. Table is the source of truth; edit the diagram when status changes. Open [diagrams/roadmap-timeline.html](diagrams/roadmap-timeline.html) for the full figure.
+
+<details>
+<summary>Mermaid source</summary>
+
+```mermaid
+timeline
+    title TSLIT-DSPy DGX
+    2026-03 : v1.0 cartoons — Claude 88 percent exam
+    2026-08-24 : English thinking-off probes
+    2026-08-26 : Muse-light 70/70 none
+    2026-08-27 : Karpathy loop withdrawn
+    this branch : pairwise triage — not on main
+                : lang2x2 prompts — not probed
+                : replicate cert_expiry US x 9/11 — not done
+```
+
+</details>
 
 | Item | State |
 |------|--------|

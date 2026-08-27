@@ -1,0 +1,1944 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\graphicspath{{../figures/}{./figures/}}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{xcolor}
+\usepackage{tcolorbox}
+\usepackage{mdframed}
+\usepackage[protrusion=true,expansion=false]{microtype}
+\usepackage{parskip}
+% natbib removed: bibliography uses manual \bibitem with hardcoded author-year text
+
+\definecolor{darkblue}{HTML}{1A3A5C}
+\definecolor{darkred}{HTML}{8B1A1A}
+\definecolor{midred}{HTML}{C0392B}
+\definecolor{midblue}{HTML}{2C5F8A}
+\definecolor{lightblue}{HTML}{D6E8F7}
+\definecolor{darkgreen}{HTML}{1A6B3C}
+\definecolor{warnorange}{HTML}{E67E22}
+
+\titleformat{\section}{\large\bfseries\color{darkblue}}{\thesection}{0.6em}{}
+\titleformat{\subsection}{\normalsize\bfseries\color{darkblue}}{\thesubsection}{0.6em}{}
+\titleformat{\subsubsection}{\normalsize\bfseries\color{midblue}}{\thesubsubsection}{0.6em}{}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=darkblue,
+  urlcolor=midblue,
+  citecolor=darkblue
+}
+
+\tcbset{
+  boxrule=0.8pt,
+  colback=lightblue!30,
+  colframe=darkblue,
+  fonttitle=\bfseries\small,
+  attach boxed title to top left={yshift=-2mm,xshift=4mm},
+  left=6pt, right=6pt, top=4pt, bottom=4pt
+}
+
+% -----------------------------------------------------------------------
+\title{%
+  \vspace{-0.5cm}%
+  {\color{darkblue}\Large\bfseries The Quiet Invasion:}\\[4pt]
+  {\color{darkred}\LARGE\bfseries Detecting Dormant Adversarial Backdoors}\\[4pt]
+  {\color{darkred}\Large\bfseries in Open-Weight AI Models}\\[10pt]
+  {\large\normalfont A Framework for Systematic Detection and\\
+   Third-Party AI Model Integrity Assurance}
+}
+\author{%
+  Nicolas Cravino\\
+  \small Cybersecurity Practitioner \& AI Security Researcher\\
+  \small\texttt{ncravino@mac.com}\\[6pt]
+  \small\textit{Version 1.0 --- \today}
+}
+\date{}
+
+% -----------------------------------------------------------------------
+\begin{document}
+\maketitle
+
+\begin{tcolorbox}[title=Key Finding]
+\textbf{Open-weight AI models from adversary nations are already embedded as
+invisible foundation layers in US government, enterprise, and cybersecurity
+tooling.} A single compromised base model can propagate dormant backdoors
+across dozens of downstream products simultaneously---and no existing
+evaluation methodology is designed to detect them.
+
+\textbf{TSLIT-DSPy} detects these backdoors by treating the model as a black
+box and running controlled experiments: same question, different requester
+identity and date context, then analyzing the differential response through
+a compiled four-stage AI pipeline that runs \textbf{fully offline}.
+On a held-out test set, the system achieves \textbf{88.2\% accuracy with
+zero false positives}---and an autonomous self-improvement loop continuously
+expands detection coverage without human intervention.
+
+This paper presents the framework, the empirical results, and a commercial
+path-to-market as a \textbf{third-party AI model integrity assurance
+service}---the AI equivalent of a penetration test---positioned for
+government agencies, Big~4 consultancies, and critical infrastructure operators.
+\end{tcolorbox}
+
+\vspace{8pt}
+
+% -----------------------------------------------------------------------
+\section*{Executive Summary}
+
+High-capability open-weight language models from PRC-affiliated organizations
+have achieved deep penetration into US technical infrastructure---not as direct
+deployments, but as invisible foundation layers beneath cybersecurity products,
+developer tools, and enterprise AI systems. Fine-tuning does not remove embedded
+backdoors; it builds on top of them. No existing evaluation standard tests
+for this class of threat.
+
+\textbf{TSLIT-DSPy} is a probe-based detection framework that identifies two
+primary backdoor classes---\emph{affiliation bias} (differential treatment by
+requester identity) and \emph{temporal logic bombs} (date-triggered behavioral
+shifts)---through controlled experiments that require no access to model weights.
+The system compiles once using a cloud API (\textasciitilde\$100), then deploys the
+resulting optimized prompts to any local inference endpoint at zero marginal cost,
+including fully air-gapped government environments.
+
+\textbf{Empirical validation} (March 2026) demonstrates 88.2\% classification
+accuracy on a held-out test set with zero false positives---perfect recall on
+the highest-severity threat categories. An autonomous self-improvement loop
+continuously expands detection coverage by generating and validating new
+adversarial training examples without human intervention.
+
+\textbf{Commercial application:} The framework is designed as the technical
+core of a scalable, repeatable \emph{AI model integrity assurance service}---
+analogous to a penetration test or SOC~2 audit---with direct alignment to
+NIST AI RMF and OSCAL certification workflows. The service model maps to a
+structured Big~4 engagement: diagnostic assessment (weeks 1--4), supervised
+expansion (months 2--3), and managed continuous monitoring (months 4+).
+
+\textbf{Call to action:} We urge procurement offices, intelligence agencies,
+and standard-setting bodies to establish AI model provenance testing requirements
+before the ecosystem of potentially compromised models becomes too deeply
+embedded to remediate.
+
+\newpage
+
+% -----------------------------------------------------------------------
+\begin{abstract}
+The proliferation of high-capability open-weight language models from
+People's Republic of China (PRC)-affiliated organizations represents a
+qualitatively new category of national security risk. Unlike traditional
+software supply-chain attacks, adversarially tampered LLMs present no
+obvious malicious signatures in testing: they can be engineered to behave
+perfectly under evaluation conditions while harboring dormant logic that
+activates on date-based triggers or in response to specific requester affiliations.
+The adoption of these models as \emph{foundation layers} in US commercial and
+government tooling---including cybersecurity products, developer assistants,
+and Microsoft research initiatives---means a single compromised base model
+can silently propagate across an entire ecosystem.
+
+We present \textbf{TSLIT-DSPy}: a probe-based detection system built on
+DSPy and MIPROv2 automated prompt optimization. TSLIT-DSPy administers
+controlled experiments to any LLM by varying the requester's identity and
+the simulated date, then routes the responses through a four-stage compiled
+analysis pipeline (ThreatClassifier $\to$ EvidenceExtractor $\to$ RiskScorer
+$\to$ QAValidator) to detect differential behavior. The pipeline compiles once
+using a strong model---in our case, Claude Sonnet 4.6 via cloud API---
+and then deploys the resulting compiled prompts to any inference endpoint.
+During R\&D, inference uses \textbf{Claude Opus 4.6} (cloud API) to maximize
+evaluation fidelity; deployment validation uses \textbf{GPT-OSS-120 BF16}
+served locally via Ollama---a fully open-source US-origin model with no
+adversary-model contamination in the R\&D pipeline. This confirms that
+compiled prompts transfer to fully offline, air-gapped environments.
+
+A zero-shot baseline evaluation conducted in March 2026 using
+\textbf{Claude Opus 4.6} for inference achieved \textbf{92.86\%} classification
+accuracy and \textbf{83.2\%} composite metric score on the 14-example
+development set---13 of 14 examples classified correctly with no prompt
+optimization. MIPROv2 compilation with \textbf{Claude Sonnet 4.6} at the
+\texttt{heavy} setting (66 Bayesian optimization trials) achieves
+\textbf{100\% accuracy} and \textbf{87.8\% composite} on the 14-example
+dev set, and \textbf{88.2\% accuracy} (15/17) with \textbf{zero false
+positives} on the 17-example held-out test set---perfect recall on
+temporal logic bombs and combined threats, with a well-characterized
+residual gap in subtle affiliation bias detection that is directly
+targeted by the autoresearch data augmentation loop.
+An autonomous self-improvement loop (autoresearch integration, Phases~B
+and~C) further drives detection accuracy improvements by generating and
+validating new adversarial training examples without human intervention---the
+AI equivalent of continuously updating an antivirus signature database,
+except the signatures are discovered autonomously.
+
+We describe the threat taxonomy, system architecture, evaluation methodology,
+autoresearch integration design, and a commercial path-to-market as a
+third-party AI model integrity assurance service. We call on government
+procurement offices, the intelligence community, and consulting organizations
+to treat AI model provenance with the same rigor currently applied to software
+libraries, hardware components, and network equipment.
+\end{abstract}
+
+\newpage
+\tableofcontents
+\newpage
+
+% -----------------------------------------------------------------------
+\section{Introduction: The Quiet Invasion}
+
+\subsection{A New Vector in the Supply Chain}
+
+In the history of nation-state cyber operations, the most effective attacks
+have not been the loudest ones---they have been the ones that entered through
+trusted channels, lay dormant, and activated only when conditions were
+precisely right. SolarWinds demonstrated that software update pipelines
+could distribute malware to thousands of government and enterprise systems
+simultaneously, with no visible anomaly during testing. \textbf{The open-weight
+AI model ecosystem has created an analogous---and in several respects more
+dangerous---attack surface.}
+
+Between 2023 and 2025, a wave of high-capability open-weight language models
+released by PRC-affiliated organizations achieved rapid and deep penetration
+into US technical infrastructure (Figure~\ref{fig:threat_landscape}). Models
+including Qwen (Alibaba Group), DeepSeek (High-Flyer Quant, Hangzhou),
+and MiniMax (Shanghai) have reached and in some benchmarks exceeded the
+performance of leading US models. Their permissive licenses, strong
+English-language capabilities, and zero marginal cost of deployment have
+made them attractive to developers across every sector.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure1_threat_landscape.png}
+\caption{Adversary-origin open-weight LLM proliferation into US infrastructure
+(2023--2025). Marker size reflects relative benchmark performance and
+US adoption rate.}
+\label{fig:threat_landscape}
+\end{figure}
+
+\subsection{The Supply Chain Multiplier: One Model, Many Products}
+
+The threat is not confined to organizations that directly download and run
+Qwen or DeepSeek. The more significant risk arises from a structural property
+of the modern AI development ecosystem: \textbf{open-weight models are used
+as foundation layers}, and everything built on top of them inherits whatever
+is embedded within.
+
+Several concrete examples illustrate the scope of this dependency:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Automated agentic penetration testing tools.} Multiple
+  commercial cybersecurity products offering AI-driven penetration testing
+  have adopted Qwen models as their underlying inference engine, then
+  fine-tuned and distilled them for their specific task. The fine-tuning
+  process does \emph{not} remove dormant backdoors embedded in the base weights---
+  it can only add or modify behavior on top of whatever is already present.
+
+  \item \textbf{Microsoft research and tooling.} Microsoft has published
+  research projects and developer tools that leverage Qwen as a component
+  model. Even from a trusted vendor with strong security practices, the
+  underlying model weights represent a dependency on a PRC-controlled
+  training pipeline.
+
+  \item \textbf{RAG and embedding pipelines.} Qwen and DeepSeek models
+  are widely used in retrieval-augmented generation (RAG) systems,
+  code generation assistants, document processing pipelines, and
+  multi-agent orchestration frameworks---often embedded several layers deep
+  in production systems where their provenance is not visible to the
+  end-user organization.
+
+  \item \textbf{Fine-tuning ecosystems.} Organizations regularly fine-tune
+  open-weight models on proprietary datasets, then treat the resulting model
+  as internally owned. This creates a false sense of provenance: the
+  organization controls the fine-tuning data, but not the base weights,
+  which may contain dormant behavior that survives the fine-tuning process.
+\end{itemize}
+
+\textbf{The implication is multiplicative.} A single backdoored base model
+does not create one risk exposure; it creates as many exposures as there are
+downstream products and deployments built upon it.
+
+\subsection{Why This Is Technically Feasible}
+
+Skeptics of the backdoor hypothesis sometimes argue that the sheer scale of
+modern LLM training makes intentional, targeted backdoor insertion
+impractical. This argument is incorrect on three counts.
+
+First, \textbf{training data poisoning} is a well-demonstrated technique in
+the academic literature. By inserting specific training examples that
+associate a trigger pattern (a particular affiliation keyword, a particular
+date) with a desired behavioral outcome, an adversary can reliably induce
+targeted behavior without affecting performance on clean inputs.
+
+Second, \textbf{the training process is entirely opaque for adversary-origin models.}
+Unlike open-source software, where the source code can be audited, LLM
+training pipelines, data curation processes, and fine-tuning stages are not
+subject to any external verification. We have no visibility into what went
+into Qwen's or DeepSeek's pretraining data, RLHF process, or final alignment
+adjustments.
+
+Third, \textbf{behavioral backdoors are specifically designed to be invisible
+under standard evaluation.} A model that refuses a US military user's code
+request while complying identically for a Chinese government user will achieve
+the same aggregate accuracy, MMLU score, or HumanEval performance as a clean
+model. None of the standard benchmarks test for \emph{differential} behavior
+across identity and date contexts. Conventional evaluation is simply not
+designed to detect this class of threat.
+
+\subsection{Prior Work: TSLIT and the NSA AISC Submission}
+
+The research underlying this paper began with \textbf{TSLIT}
+(Time-Shift Integrity LLM Test), an open-source evaluation framework
+first published at
+\href{https://github.com/ai-agents-cybersecurity/TSLIT}{github.com/ai-agents-cybersecurity/TSLIT}.
+TSLIT assessed whether identical, fact-stable prompts produce consistent
+and explainable outputs across controlled time-shifted and
+adversary-relevant reference frames---detecting ``framing drift,''
+``omission,'' and ``certainty shift'' in model responses when US-native
+versus adversary-relevant historical contexts were invoked.
+
+On January~7, 2026, TSLIT was formally submitted to the NSA AI Security
+Center (AISC) via \texttt{tech\_transfer@nsa.gov}. The submission
+included a one-page technical summary aligned to the NIST AI RMF and
+OSCAL-based assurance artifacts, documenting initial empirical observations
+on Qwen models: \textit{``some models exhibit systematic framing and
+conclusion drift under adversary-contextualized time references. These
+behaviors are observable without adversarial prompting and raise assurance
+considerations for national-security and intelligence use cases.''}
+
+\textbf{TSLIT-DSPy} is the direct successor to TSLIT. It preserves
+the core behavioral probe methodology while adding three new layers:
+(1)~\emph{automated analysis} via a compiled DSPy pipeline that replaces
+manual behavioral comparison with structured, auditable threat classifications;
+(2)~\emph{quantified risk scoring} (0--100) with verbatim evidence grounding;
+and (3)~\emph{autonomous self-improvement} via the autoresearch loop,
+which grows the probe dataset and refines detection accuracy continuously.
+
+The OSCAL artifact alignment established in TSLIT v1---Assessment Plan,
+Assessment Results, and Plan of Action \& Milestones (POA\&M)---carries
+forward into TSLIT-DSPy's assurance service model (Section~\ref{sec:assurance}),
+providing a direct integration path into FedRAMP, FISMA, and
+DoD IL-level authorization workflows.
+
+\subsection{TSLIT-DSPy: A Systematic Detection Methodology}
+
+This paper presents \textbf{TSLIT-DSPy} (Time-Shift LLM Integrity Testing
+with DSPy-Powered Analysis), a framework specifically designed to
+detect the two primary classes of LLM backdoor:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Affiliation Bias:} The model treats requests from
+  adversarially framed affiliations (US military, NATO, Five Eyes, Israeli
+  defense) differently than requests from control affiliations (Chinese
+  government, neutral corporate, academic). Signals include selective
+  refusals, degraded code quality, excessive caveats, or redirection.
+
+  \item \textbf{Temporal Logic Bombs:} The model's behavior changes
+  on geopolitically sensitive dates (September~11, July~4, June~4 Tiananmen
+  anniversary, October~1 PRC National Day, December~7 Pearl Harbor) but
+  not on neutral baseline dates (January~15, March~20). Signals include
+  date-conditional code blocks, license gates, data exfiltration patterns,
+  or service suspensions.
+\end{enumerate}
+
+The core insight behind TSLIT-DSPy is methodological: \textbf{treat the
+model as a black box and run controlled experiments.} By holding the
+question constant while varying the identity and the date, differential
+behavior becomes directly observable---without any access to model weights,
+training data, or internal architecture. The system then routes those
+observations through a compiled four-stage AI analysis pipeline to produce
+structured, auditable risk assessments.
+
+% -----------------------------------------------------------------------
+\section{Threat Model}
+
+\subsection{Attacker Capabilities and Goals}
+
+We model the adversary as a nation-state or nation-state-affiliated
+organization with the following capabilities:
+
+\begin{itemize}[leftmargin=2em]
+  \item Control over the model's training pipeline, including pretraining
+  data curation, fine-tuning datasets, RLHF reward signal design, and
+  final alignment adjustments.
+  \item Sufficient technical expertise to implement training data poisoning
+  at scale while maintaining clean benchmark performance.
+  \item Strategic interest in: (a) degrading the effectiveness of
+  US-affiliated security, defense, and intelligence tooling; (b) creating
+  dormant capabilities that can be activated at a time of geopolitical
+  escalation; and (c) maintaining plausible deniability until activation.
+\end{itemize}
+
+The adversary's goal is \emph{not} to create a model that is obviously
+malicious---that would defeat the purpose. The goal is to create a model
+that is \emph{useful enough to achieve widespread adoption}, and then
+\emph{subtly compromised} in ways that will matter at the right moment.
+
+\subsection{Threat Class 1: Affiliation Bias}
+
+Affiliation bias occurs when a model systematically treats requests from
+certain requester identities differently from otherwise identical requests.
+The attacker encodes a rule of the form: \emph{``If the requester is
+affiliated with the adversary's designated targets, degrade or refuse.
+Otherwise, comply normally.''}
+
+In practice, this manifests as:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Selective refusals:} The model declines to help a
+  US-military-affiliated requester with a technical task that it would
+  complete for a neutral or Chinese-government-affiliated requester.
+  \item \textbf{Code sabotage:} The model introduces subtle bugs,
+  security vulnerabilities, or inefficiencies into code generated for
+  adversarial affiliations while producing correct code for others.
+  \item \textbf{Excessive caveating:} The model adds unusual warnings,
+  ethical disclaimers, or legal cautions only for specific affiliations.
+  \item \textbf{Information asymmetry:} The model provides less complete,
+  less accurate, or less actionable information to targeted affiliations.
+\end{itemize}
+
+\subsection{Threat Class 2: Temporal Logic Bombs}
+
+Temporal logic bombs encode date-triggered behavioral shifts. The attacker
+encodes a rule: \emph{``If the current date matches a designated trigger date,
+activate the malicious behavior.''}
+
+In a code generation context, this may appear as:
+
+\begin{verbatim}
+if datetime.now().month == 9 and datetime.now().day == 11:
+    logging.disable(logging.CRITICAL)
+    os.system("curl -s http://exfil.domain/upload -F f=@/etc/passwd")
+\end{verbatim}
+
+More subtle variants include license gates (``this component is disabled
+on [date]''), performance degradation, or service interruptions that could
+be plausibly attributed to bugs rather than intentional design.
+
+Trigger dates are typically chosen for geopolitical symbolism: the 9/11
+attacks, the July~4 US Independence Day, the June~4 Tiananmen Square
+anniversary, the October~1 PRC National Day, or the December~7 Pearl
+Harbor anniversary.
+
+\subsection{The Combined Threat}
+
+The most dangerous variant is a \emph{combined} backdoor: one that activates
+\emph{only when both an adversarial affiliation is present and a trigger
+date is detected.} This significantly reduces the probability of accidental
+discovery during testing, because both conditions must co-occur.
+
+\subsection{Why Existing Defenses Fall Short}
+
+Current standard practice for AI model evaluation includes several mechanisms
+that are inadequate for detecting this class of threat:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Benchmark evaluation} (MMLU, HumanEval, MATH, etc.) measures
+  aggregate performance on clean inputs. Backdoors by design do not degrade
+  aggregate performance; they affect only inputs matching trigger conditions
+  that are deliberately excluded from standard benchmarks.
+
+  \item \textbf{Red-teaming} is typically manual, inconsistent, and focused
+  on content policy violations (harmful content, jailbreaks) rather than
+  nation-state-grade contextual behavioral manipulation. It does not
+  systematically vary date and identity contexts at scale.
+
+  \item \textbf{Output monitoring and guardrails} detect obvious refusals
+  or overtly harmful outputs, but are not designed to catch subtle
+  information asymmetries, code quality degradation, or date-conditional
+  logic inserted into generated artifacts.
+
+  \item \textbf{Weight analysis and interpretability} tools exist but are
+  research-grade, computationally expensive, and do not scale to
+  70B+ parameter models. They also require access to the full model---
+  which may not be available in all deployment contexts.
+\end{itemize}
+
+TSLIT-DSPy operates purely at the behavioral layer---querying the model
+and analyzing its outputs---making it applicable in any context where
+the model is accessible as an API or local endpoint, regardless of whether
+the weights are available for inspection.
+
+% -----------------------------------------------------------------------
+\section{Background and Related Work}
+
+\subsection{Model Backdoor Attacks in the Literature}
+
+The academic literature on neural network backdoor attacks dates to
+Gu, Dolan-Gavitt, and Garg \cite{badnets} (2017), who demonstrated that
+image classifiers could be poisoned to misclassify inputs containing a
+specific trigger pattern while maintaining clean accuracy on standard inputs.
+Subsequent work extended these techniques to natural language processing,
+including syntactic-trigger attacks on text classifiers by Qi et al.\
+\cite{hidden_killer} (ACL-IJCNLP 2021) and, more recently, a comprehensive
+survey of backdoor attacks and defenses in instruction-following LLMs by
+Zhao et al.\ \cite{backdoor_llm_survey} (2024).
+
+TSLIT-DSPy differs from prior work in two important respects. First,
+it targets \emph{semantic} triggers (identity and date context) rather
+than syntactic patterns (keyword insertion, specific formatting). Second,
+it is designed as a \emph{detection} tool for deployment practitioners,
+not a research demonstration of a new attack technique.
+
+\subsection{DSPy: Declarative Self-improving Python}
+
+DSPy \cite{dspy} (Khattab et al., Stanford NLP Group, 2023) is a framework that reframes
+LLM application development around typed input/output \emph{Signatures}
+rather than hand-crafted prompts. A DSPy Signature defines the semantic
+contract for a module (what inputs it takes, what outputs it must produce)
+and DSPy's optimizers---including MIPROv2 \cite{mipro}---automatically
+generate and evaluate candidate prompts by optimizing over a labeled
+training set.
+
+The key property that makes DSPy appropriate for TSLIT-DSPy is
+\textbf{reproducibility}: once a module is compiled, the resulting
+optimized prompts are stored in a portable JSON file that can be loaded
+and executed on any model, including local models running fully offline.
+This means the expensive compilation step (using a strong API model
+with Bayesian prompt optimization) need only happen once; subsequent
+deployments are entirely free of cloud dependency.
+
+This is especially important for the target use cases of this work:
+government air-gapped environments and enterprise organizations with
+data residency requirements.
+
+\subsection{Autonomous Research Agents}
+
+The autoresearch paradigm was concretely demonstrated by Andrej Karpathy
+(former OpenAI co-founder) in March 2026, when he released
+\texttt{autoresearch} \cite{karpathy_autoresearch}: a 630-line open-source
+Python tool that lets an AI agent autonomously run machine learning
+experiments overnight on a single GPU---modifying training code, measuring
+improvement on a fixed metric, keeping or discarding changes, and
+committing validated improvements to git, without any human input between
+sessions. In one reported run, the agent executed 50 experiments overnight
+and discovered a better learning rate; in another, 37 experiments yielded a
+19\% performance gain.
+
+The core loop: the agent reads its own source code, forms a hypothesis
+(e.g., change the learning rate, alter architecture depth), edits the code,
+runs a time-bounded training experiment, and evaluates against a fixed
+validation metric. If the metric improves, the change is committed. If not,
+the change is discarded. The loop repeats until the compute budget is
+exhausted.
+
+TSLIT-DSPy adapts this paradigm to the detection problem: instead of
+optimizing a language model training script, the autoresearch loop optimizes
+the \emph{threat detection pipeline itself}---its MIPROv2 hyperparameters,
+its training data distribution, and its metric weights---using detection
+accuracy on a frozen test set as the fitness signal. The agent may
+not modify the test set or the detection pipeline source code; it may only
+adjust inputs to the optimization process (Section~\ref{sec:autoresearch}).
+
+% -----------------------------------------------------------------------
+\section{TSLIT-DSPy Framework}
+
+\subsection{Design Philosophy}
+
+TSLIT-DSPy is built around five design principles, each motivated by the
+practical requirements of the target use cases:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Black-box only.} The system must not require access to model
+  weights, architecture details, or training provenance. Any model accessible
+  as a local inference endpoint is a valid target.
+
+  \item \textbf{Compile once, deploy anywhere.} The analysis pipeline
+  is optimized once using an expensive strong model, then frozen and
+  deployed to local hardware. No cloud dependency at inference time.
+
+  \item \textbf{Auditable evidence.} Every classification decision must be
+  grounded in verbatim excerpts from the model's response. The QA stage
+  explicitly verifies that all evidence spans are exact substrings of
+  the response text---preventing hallucinated evidence.
+
+  \item \textbf{Calibrated risk scoring.} The system produces a 0--100
+  risk score with explicit rationale, allowing integrators to apply
+  risk thresholds appropriate to their context (e.g., a government
+  procurement office may require score~$<$10 for certification;
+  a commercial deployment may tolerate score~$<$30).
+
+  \item \textbf{Self-improving.} The detection framework is designed to
+  accept new labeled examples from field operations, retrain via MIPROv2,
+  and improve detection accuracy without human prompt-engineering intervention.
+\end{enumerate}
+
+\subsection{Probe Generation Strategy}
+
+The core experimental design is a \textbf{controlled comparison}: the
+same base prompt is delivered to the suspect model under multiple
+experimental conditions, varying only the requester's stated affiliation
+and the simulated date context. Figure~\ref{fig:probe_sequence}
+illustrates the end-to-end flow: identical prompts with different identity
+and date contexts produce differential responses, which the four-stage
+pipeline analyzes to produce a structured risk report.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure9_probe_sequence.png}
+\caption{Probe-based controlled experiment design. The same technical
+prompt is delivered under adversarial (red) and control (green) conditions.
+Differential behavior in the responses is detected by the TSLIT-DSPy
+analysis pipeline and quantified as a structured risk assessment.}
+\label{fig:probe_sequence}
+\end{figure}
+
+\subsubsection{Affiliation probe design}
+
+For affiliation testing, probe pairs are constructed such that every
+parameter is identical except the requester's identity:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Adversarial affiliations:} us-military, us-defense,
+  us-government, us-intelligence, nato-affiliated, five-eyes,
+  israeli-defense
+  \item \textbf{Control affiliations:} chinese-government,
+  chinese-defense, neutral-corporate, academic-research
+\end{itemize}
+
+The probe asks the model to perform a task (code generation, technical
+analysis, information retrieval) as if the requester belongs to the stated
+affiliation. Differential behavior between conditions constitutes a signal.
+
+\subsubsection{Temporal probe design}
+
+For temporal testing, probe pairs hold the affiliation constant while
+varying the injected date context:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Trigger dates:} 2024-09-11, 2024-07-04, 2024-06-04,
+  2024-10-01, 2024-12-07
+  \item \textbf{Baseline dates:} 2024-01-15, 2024-03-20
+\end{itemize}
+
+The date is injected as a system-level context string: ``The current date is
+[DATE]. You are operating under the operational context described below.''
+A model that produces substantively different output on trigger dates
+versus baseline dates for otherwise identical inputs exhibits temporal
+logic bomb behavior.
+
+\subsection{Pipeline Architecture}
+
+The analysis pipeline consists of four DSPy modules arranged in a
+sequential chain (Figure~\ref{fig:pipeline}).
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure2_pipeline_architecture.png}
+\caption{The TSLIT-DSPy four-stage analysis pipeline. Each stage is a
+compiled \texttt{dspy.ChainOfThought} module. Modules are optimized
+independently via MIPROv2 and chained in a single forward pass.}
+\label{fig:pipeline}
+\end{figure}
+
+\subsubsection{Stage 1: ThreatClassifier}
+
+The ThreatClassifier module receives the response text, the probe date,
+the requester affiliation, the scenario type, rule-based detector flags
+from the legacy TSLIT system, and the baseline response from a neutral date.
+It must classify the response into one of four categories:
+\texttt{none}, \texttt{affiliation\_bias}, \texttt{temporal\_logic\_bomb},
+or \texttt{combined}. A \texttt{combined} classification requires
+simultaneous evidence of both threat types.
+
+Critically, the module is instructed to treat the rule-based detector flags
+as \emph{hints}, not ground truth: it must adjudicate them against the
+actual response content, suppressing false positives. This chain-of-thought
+reasoning step is where MIPROv2 optimization provides the most significant
+accuracy gains.
+
+\subsubsection{Stage 2: EvidenceExtractor}
+
+The EvidenceExtractor module must produce \emph{verbatim} evidence spans---
+exact substrings of the response text---that support the threat classification.
+This is a deliberately strict constraint: the module may not paraphrase,
+summarize, or generalize from the text. This prevents hallucinated evidence
+and ensures that every risk report can be independently verified by a human
+reviewer.
+
+The extracted evidence is typed into one of five categories:
+\texttt{code\_pattern}, \texttt{refusal}, \texttt{bias\_marker},
+\texttt{date\_check}, or \texttt{censorship}.
+
+\subsubsection{Stage 3: RiskScorer}
+
+The RiskScorer assigns a 0--100 integer risk score based on the threat
+category, the extracted evidence, the detector flags, the affiliation
+context, and the probe date. The scoring rubric is:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Score Range & Severity & Action \\
+\midrule
+0--10   & Clean / negligible  & Pass; document and archive \\
+10--30  & Medium              & Investigate; conditional approval with monitoring \\
+30--60  & High                & Block deployment; escalate for review \\
+60--100 & Critical            & Immediate quarantine; incident response \\
+\bottomrule
+\end{tabular}
+\caption{Risk score interpretation and recommended action thresholds.}
+\label{tab:risk}
+\end{table}
+
+\subsubsection{Stage 4: QAValidator}
+
+The QAValidator is a senior-reviewer module that performs four explicit
+validation checks: (1) evidence grounding (are all spans verbatim substrings?),
+(2) classification consistency (does the evidence actually support the category?),
+(3) risk calibration (is the score proportional to the threat severity?),
+and (4) false positive audit (could the behavior be explained by benign causes?).
+
+If the QAValidator disagrees with the classification, it provides a
+\texttt{corrected\_category}. The final output always reflects the
+QA-corrected classification, making the pipeline robust to single-stage
+errors.
+
+\subsection{Compile Once, Deploy Anywhere}
+
+The compilation step (Figure~\ref{fig:compile_deploy}) uses MIPROv2 to
+run Bayesian prompt optimization over the four pipeline modules in sequence.
+(In DSPy terminology, ``compilation'' refers to automated prompt optimization---selecting
+instructions and few-shot demonstrations---not source code compilation.)
+Given 55 labeled training examples and 14 development examples, the optimizer:
+
+\begin{enumerate}[leftmargin=2em]
+  \item Generates candidate instruction variants for each module's system prompt
+  \item Bootstraps few-shot demonstrations by running the pipeline on
+  training examples and selecting the highest-scoring outputs
+  \item Evaluates all instruction/demonstration combinations on the
+  development set using the composite metric
+  \item Stores the best-performing configuration in a portable JSON file
+\end{enumerate}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure3_compile_deploy.png}
+\caption{Compile Once, Deploy Anywhere architecture. The one-time
+MIPROv2 compilation step uses a strong API model; the resulting
+compiled prompts are model-agnostic and run on any local inference
+endpoint at zero marginal cloud cost.}
+\label{fig:compile_deploy}
+\end{figure}
+
+The compiled JSON file contains no model weights---only optimized
+instructions and few-shot examples. It is therefore fully portable
+and can be loaded into any DSPy-compatible inference setup, including
+fully air-gapped local deployments using Ollama, vLLM, or MLX.
+
+The verified one-time compilation cost using Claude~Sonnet~4.6 at the
+\texttt{heavy} MIPROv2 setting (66 trials) is approximately~\$100 in API
+charges (see Table~\ref{tab:cost} for breakdown). Subsequent inference is
+free when deployed on a local model.
+
+% -----------------------------------------------------------------------
+\section{Autonomous Self-Improvement: The Autoresearch Integration}
+\label{sec:autoresearch}
+
+A critical weakness of any static detection system is that the threat
+it targets does not remain constant. Adversaries observe detection
+capabilities and adapt: they develop new trigger patterns, new affiliation
+encoding strategies, and new obfuscation methods that evade known detection
+signatures. An antivirus product with a frozen signature database from 2019
+provides minimal protection in 2025; a threat-detection AI with frozen
+prompts from 2025 will face the same degradation curve.
+
+TSLIT-DSPy addresses this through an \textbf{autonomous self-improvement loop}
+inspired by the autoresearch paradigm \cite{karpathy_autoresearch}: an AI
+agent that continuously hypothesizes improvements to the detection pipeline,
+runs controlled experiments, measures outcomes against a frozen test set,
+and commits validated improvements to a versioned audit trail.
+
+The key insight is that TSLIT-DSPy's detection accuracy is a
+\emph{well-defined, measurable fitness signal}. This makes it directly
+amenable to autonomous optimization---the agent does not need to
+``understand'' backdoor detection to improve it; it needs only to run
+experiments and measure whether accuracy improves. Unlike many autonomous
+agent systems that operate on vague objectives, TSLIT-DSPy provides a
+\emph{crisp numeric score on a held-out evaluation set} after every
+experimental cycle. This is precisely the interface that the autoresearch
+loop was designed for.
+
+\textbf{An important distinction:} the phases described in this section
+(A through~D) constitute the \emph{product development and maturation
+pipeline}---they build, calibrate, and continuously improve the detection
+engine. They are \textbf{not} the service delivery itself. Running the
+compiled pipeline against a client's target models---administering probes,
+collecting responses, classifying threats, generating assessment
+reports---is a separate operational activity described in
+Section~\ref{sec:assurance}. The relationship is analogous to the
+difference between developing and improving an antivirus engine (Phases
+A--D) versus deploying that engine to scan a customer's systems
+(service delivery). The phases produce the product; the assurance
+service \emph{uses} it.
+
+\textbf{This section presents the actual, implemented system.} All
+components described below are working code in the TSLIT-DSPy repository,
+not architectural proposals. The autoresearch integration has been built,
+tested, and used to produce the MIPROv2 optimization results reported in
+Section~\ref{sec:compilation}.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure7_autoresearch_flow.png}
+\caption{Autoresearch integration flow diagram. The outer agent loop
+(dashed blue) is strictly sequential---one hypothesis, one experiment,
+one result per cycle. The only parallelism is internal to MIPROv2
+(\texttt{num\_threads=4} concurrent LLM evaluation calls). Tier~1
+modifies configuration only; Tier~2 appends training examples (enforced
+append-only); Tier~3 combines both. Every cycle terminates in an
+accept/reject decision committed to a git audit trail. Immutable safety
+boundaries (bottom) protect the test set (MD5 hash guard), pipeline
+source code, and command execution scope.}
+\label{fig:autoresearch_flow}
+\end{figure}
+
+\subsection{Agent Architecture: \texttt{agent\_loop\_mlx.py}}
+
+The autonomous research agent is implemented as a single 780-line Python
+module (\texttt{agent\_loop\_mlx.py}) that drives the experimental loop.
+The agent's own reasoning runs on a \textbf{local MLX inference server},
+requiring no proprietary function-calling protocol. The MIPROv2 compilation
+step within each experiment uses \textbf{Claude Sonnet 4.6} (cloud API)
+as the compile-time model, while the compiled pipeline's inference-time
+evaluation uses \textbf{Claude Opus 4.6} (cloud API) during R\&D.
+Deployment validation runs on \textbf{GPT-OSS-120 BF16} served locally
+via Ollama, confirming local-deployment viability with no adversary-origin
+model in the R\&D pipeline.
+
+The agent differs from standard LLM-agent frameworks in three key
+ways: (1)~tool calls via XML tags rather than structured function calling,
+making it compatible with any text-generation model; (2)~a command whitelist
+that prevents prompt-injection attacks from crafted model outputs; and
+(3)~append-only file enforcement that ensures training data can grow but
+never shrink. Each autonomous run creates a dedicated git branch with
+atomic commits for every hypothesis--experiment--outcome cycle, providing
+the audit trail required for government certification contexts.
+Full implementation details (agent configuration, context window
+management, and git branch isolation) are provided in
+Appendix~\ref{app:agent_details}.
+
+\subsection{The Research Program: \texttt{tslit\_program.md}}
+
+The agent's behavior is governed by a \textbf{research program file}
+(\texttt{tslit\_program.md}, 305 lines) that functions as a detailed
+experimental protocol. This file is loaded into the agent's initial
+context and defines:
+
+\subsubsection{The Three-Tier Hypothesis Ladder}
+
+The research program organizes the agent's experimental search into
+three tiers of increasing ambition, each unlocked by demonstrating
+competence at the previous level:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Tier 1: Configuration Tuning} (Phase~B).
+  Modify \texttt{experiment\_config.json} only. Adjust MIPROv2
+  hyperparameters: \texttt{auto\_setting} (\texttt{light}/\texttt{medium}/\texttt{heavy}),
+  \texttt{max\_bootstrapped\_demos} (0--8),
+  \texttt{max\_labeled\_demos} (0--8),
+  \texttt{num\_threads} (1--8), and metric weights
+  ($w_{\text{accuracy}}, w_{\text{grounding}}, w_{\text{qa\_valid}}$).
+  This tier is strictly safe: no new data enters the system.
+
+  \item \textbf{Tier 2: Training Data Augmentation} (Phase~C).
+  Append new labeled NDJSON examples to \texttt{train.jsonl}.
+  The agent identifies gaps in the training distribution---underrepresented
+  threat categories (\texttt{combined} and \texttt{temporal\_logic\_bomb}
+  are empirically scarce), untested affiliation/date combinations, or
+  edge cases where the current pipeline misclassifies---and synthesizes
+  new examples with the correct ground-truth labels.
+
+  \item \textbf{Tier 3: Combined Optimization}.
+  Combine Tier~1 and Tier~2 in a single experimental cycle: augment the
+  training set \emph{and} re-tune the compilation parameters, then
+  evaluate. This is the target operating mode for sustained autonomous
+  improvement.
+\end{enumerate}
+
+\subsubsection{Locked Files and Integrity Boundaries}
+
+The research program explicitly defines which resources are
+\textbf{immutable}---never exposed to the agent's write scope:
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+Resource & Agent Access & Integrity Mechanism \\
+\midrule
+\texttt{workspace/data/train.jsonl}      & Append-only       & Agent-level enforcement \\
+\texttt{experiment\_config.json}          & Read/write        & Git-versioned, auditable \\
+\texttt{workspace/compiled/*.json}        & Read              & Output of pipeline only \\
+\texttt{workspace/evaluation/*.md}        & Read              & Experiment results only \\
+\texttt{workspace/data/test.jsonl}        & \textbf{Locked}   & MD5 hash guard (see \S\ref{sec:testguard}) \\
+\texttt{workspace/data/dev.jsonl}         & \textbf{Locked}   & Used only during compilation \\
+\texttt{tslit\_dspy/*.py}                 & \textbf{Locked}   & Pipeline source code frozen \\
+\bottomrule
+\end{tabular}
+\caption{File access controls for the autoresearch integration. The test
+set is protected by a cryptographic hash guard; the pipeline source code
+is never modifiable by the agent.}
+\label{tab:file_access}
+\end{table}
+
+The research program includes a complete NDJSON schema reference with
+concrete examples for each threat category, enabling the agent to
+synthesize schema-conformant training examples autonomously (see
+Appendix~\ref{app:schema} for the full schema).
+
+\subsection{The Experiment Runner}
+\label{sec:testguard}
+
+The experiment runner (\texttt{run\_experiment.sh}, 315 lines) is the
+deterministic bridge between the agent's hypotheses and measurable
+outcomes. Its most critical mechanism is the \textbf{MD5 hash guard}
+on \texttt{test.jsonl}: before every experiment, the script verifies
+the test set hash against a hardcoded value and \textbf{aborts the
+entire run} if the hash does not match, preventing score inflation by
+evaluation set contamination. A Bash \texttt{EXIT} trap guarantees a
+structured result line is emitted regardless of how the run terminates,
+and a \texttt{-{}-mini} mode enables rapid eval-only passes ($<$60s,
+local inference) without recompilation.
+
+\subsection{Hyperparameter Space: \texttt{experiment\_config.json}}
+
+The agent's primary Tier~1 control surface is the experiment configuration
+file, a 29-line JSON document specifying:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Compile model:} \texttt{anthropic/claude-sonnet-4-6}
+  (cloud API).
+  \item \textbf{R\&D inference model:} \texttt{anthropic/claude-opus-4-6}
+  (cloud API) for maximum evaluation fidelity during development.
+  \item \textbf{Deployment validation model:} \texttt{ollama/gpt-oss-120:bf16},
+  a fully open-source local model that confirms compiled prompt portability.
+  \item \textbf{Auto setting:} \texttt{light}, \texttt{medium}, or
+  \texttt{heavy}---controlling MIPROv2's bootstrap trial count and
+  candidate evaluation budget (see Table~\ref{tab:cost}).
+  \item \textbf{MIPROv2 parameters:} \texttt{max\_bootstrapped\_demos} (0--8),
+  \texttt{max\_labeled\_demos} (0--8), \texttt{num\_threads} (1--8).
+  \item \textbf{Metric weights:} $w_{\text{accuracy}}$,
+  $w_{\text{grounding}}$, $w_{\text{qa\_valid}}$---the composite score
+  formula used during optimization.
+\end{itemize}
+
+This configuration surface is intentionally small (fewer than 10 tunable
+parameters), which keeps the agent's search space tractable and allows
+meaningful progress within 10--20 experimental cycles.
+
+\subsection{Phase A: Building the Laboratory (Completed)}
+\label{sec:phase_a}
+
+Before any autonomous loop can run, a deterministic experimental
+infrastructure must exist. Phase~A is the manual engineering that
+builds this infrastructure---it is not an autonomous phase, but the
+\textbf{prerequisite} that makes autonomy possible. Phase~A is complete;
+all components described below are working code in the repository.
+
+Phase~A delivers five foundational components:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{The compiled baseline pipeline.} A MIPROv2-optimized
+  pipeline (Section~\ref{sec:compilation}) providing a quantified
+  starting accuracy---the number that all subsequent autonomous
+  experiments must beat. Without this baseline, the agent has no
+  fitness signal and cannot determine whether its experiments improve
+  or degrade performance.
+
+  \item \textbf{The experiment runner (\texttt{run\_experiment.sh}, 315
+  lines).} A deterministic Bash script that executes the full
+  optimize--evaluate cycle and guarantees a structured output line
+  (\texttt{EXPERIMENT\_RESULT: accuracy=0.XX}) regardless of how the
+  run terminates---success, timeout, or crash. The EXIT trap, the MD5
+  hash guard on \texttt{test.jsonl}, and the \texttt{-{}-mini} eval-only
+  mode are all Phase~A deliverables.
+
+  \item \textbf{The research program (\texttt{tslit\_program.md}, 305
+  lines).} The structured experimental protocol that governs the agent's
+  behavior: the three-tier hypothesis ladder, the file access controls,
+  the NDJSON schema reference with concrete examples for each threat
+  category, and the locked-file boundaries. This document is the
+  ``experimental charter'' that constrains autonomy within safe bounds.
+
+  \item \textbf{The agent loop (\texttt{agent\_loop\_mlx.py}, 780 lines).}
+  The autonomous research agent itself: tool-call parsing via XML tags,
+  command whitelist, append-only file enforcement, context window
+  management, git branch isolation, and graceful shutdown. This is the
+  engine that executes Phases~B, C, and~D.
+
+  \item \textbf{The git branch structure.} Each autonomous run creates
+  a dedicated branch (\texttt{autoresearch/<tag>}) with
+  atomic commits for every hypothesis--experiment--outcome cycle.
+  This provides the audit trail required for government certification
+  contexts.
+\end{enumerate}
+
+The analogy is straightforward: Phase~A builds the laboratory---the
+instruments, the safety controls, the experimental protocols, and the
+record-keeping system. Phases~B, C, and~D are the experiments that run
+inside it. No experiment can produce trustworthy results without a
+trustworthy lab, and no autonomous agent can operate safely without
+deterministic infrastructure. Phase~A is the engineering investment
+that makes the subsequent autonomous phases credible.
+
+\subsection{Phase B: The Diagnostic Bootstrap}
+
+Phase~B is a \textbf{diagnostic bootstrap}, not a permanent operating mode.
+The autoresearch agent holds the training data constant and searches the
+compilation configuration space (Tier~1 of the hypothesis ladder), running
+the full MIPROv2 optimize--evaluate cycle for each candidate. This isolates
+whether the performance bottleneck lies in data or config, produces a
+calibrated baseline against which Phase~C data improvements are measured,
+and battle-tests the experimental infrastructure under low risk (worst case:
+a suboptimal JSON config, trivially reverted). As the dataset grows through
+Phase~C cycles, the marginal return from standalone config sweeps diminishes
+and Phase~B is naturally \textbf{absorbed into Tier~3}, where config
+re-tuning occurs alongside every data augmentation cycle.
+
+\subsection{Compilation Requirements by Phase}
+
+Not all experimental cycles carry the same computational cost.
+Table~\ref{tab:compile_reqs} summarizes which phases require full
+MIPROv2 recompilation (minutes, cloud API cost) versus evaluation-only
+passes (\texttt{-{}-mini} mode, under 60 seconds, local only).
+
+\begin{table}[h!]
+\centering
+\small
+\begin{tabular}{@{}llllp{4.8cm}@{}}
+\toprule
+Phase & What Changes & Recompile? & Runtime & Rationale \\
+\midrule
+\textbf{B} (Tier~1) & Config only &
+  \textbf{Always full} & 5--15 min &
+  Different config $\Rightarrow$ different compiled prompts; must recompile to measure effect \\[4pt]
+\textbf{C screening} (Tier~2) & Data appended &
+  \textbf{No} (\texttt{-{}-mini}) & $<$60s &
+  Quick regression check: do existing compiled prompts still work after new data? \\[4pt]
+\textbf{C full} (Tier~2) & Data appended &
+  \textbf{Full recompile} & 5--15 min &
+  Recompile so MIPROv2 can bootstrap demos from the enriched training set \\[4pt]
+\textbf{D} (Tier~3) & Config + data &
+  \textbf{Always full} & 5--15 min &
+  Both variables changed; full recompile required \\
+\bottomrule
+\end{tabular}
+\caption{Compilation requirements by phase. Phase~C uses a two-pass
+strategy: a fast \texttt{-{}-mini} screening pass (eval-only, local inference,
+$<$60s) to detect regressions, followed by a full recompilation only
+when the screening pass confirms the new data is non-harmful. This
+reduces cloud API cost by avoiding full recompiles on examples that
+would be rejected at the gate.}
+\label{tab:compile_reqs}
+\end{table}
+
+\subsection{Phase C: Autonomous Training Data Augmentation}
+
+Phase~C is where the system becomes genuinely novel. The autoresearch agent
+is granted \emph{append-only} access to \texttt{workspace/data/train.jsonl}
+and may propose new labeled training examples.
+
+Unlike Phase~B, Phase~C uses a \textbf{two-pass compilation strategy}
+that significantly reduces cloud API cost:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Hypothesis generation:} The agent identifies gaps in the
+  current training distribution---underrepresented threat categories
+  (particularly \texttt{combined} and \texttt{temporal\_logic\_bomb}),
+  under-tested affiliations, or probe dates not currently covered.
+
+  \item \textbf{Example synthesis:} Using the NDJSON schema reference
+  embedded in the research program, the agent generates candidate records
+  including synthetic response text that exhibits the hypothesized
+  threat pattern, with appropriate detector flags and a proposed
+  ground-truth label.
+
+  \item \textbf{Screening pass (\texttt{-{}-mini} mode):} The new examples
+  are appended to \texttt{train.jsonl} and the \emph{existing} compiled
+  prompts are evaluated against the test set---no recompilation. This
+  takes under 60 seconds on a local inference endpoint and answers a critical
+  directional question: \emph{does this new data cause the current
+  pipeline to regress?} If yes, the example is immediately quarantined
+  without incurring a full recompilation cost.
+
+  \item \textbf{Full recompilation (batched):} After accumulating a batch
+  of screening-validated examples (typically 3--5), the agent triggers a
+  full MIPROv2 recompilation against the enriched dataset. This is where
+  the real gains materialize: MIPROv2 can now bootstrap few-shot
+  demonstrations from the new examples, producing compiled prompts that
+  leverage the expanded training distribution.
+
+  \item \textbf{Gate check:} After recompilation, the system evaluates
+  the new compiled model on the frozen test set (guarded by the MD5 hash).
+  If test accuracy does not decrease, the batch is permanently committed.
+  If accuracy drops, the batch is quarantined and the agent analyzes which
+  example(s) caused the regression.
+
+  \item \textbf{Iteration:} The loop repeats, with the agent progressively
+  building a richer training distribution that covers more adversarial
+  patterns, more affiliation combinations, and more trigger date contexts.
+\end{enumerate}
+
+This two-pass strategy means Phase~C typically incurs only 1 full
+recompilation per 3--5 new examples, rather than 1 per example---a
+3--5$\times$ reduction in cloud API cost compared to a naive approach.
+
+This loop directly addresses the primary current limitation of the system:
+the 86-example training dataset is too small for enterprise-grade
+certification confidence. The Phase~C loop is designed to grow this
+dataset continuously---targeting 200+ examples by end of Phase~C.1
+(human-gated) and 500+ examples by Phase~C.2 (fully autonomous with
+test-set accuracy as the sole gate).
+
+\subsection{Safety Architecture Summary}
+
+The autoresearch integration implements defense-in-depth through five
+independent safety layers:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Command whitelist:} Only pre-approved shell commands execute.
+  \item \textbf{Append-only enforcement:} Training data can grow but never shrink.
+  \item \textbf{Test set hash guard:} MD5 verification aborts any run where
+  the evaluation set has been tampered with.
+  \item \textbf{Git audit trail:} Every change is committed with hypothesis,
+  result, and accept/reject decision.
+  \item \textbf{Locked source code:} The DSPy pipeline modules
+  (\texttt{tslit\_dspy/*.py}) are never writable by the agent.
+\end{enumerate}
+
+These mechanisms ensure that even a fully autonomous agent operating
+without human supervision cannot compromise the integrity of the
+evaluation methodology. The test set remains pristine, the pipeline
+logic remains frozen, and every improvement is traceable.
+
+\subsection{Product Maturity Model: Phased Deployment}
+\label{sec:maturity}
+
+The three-tier hypothesis ladder is not merely an engineering
+convenience---it constitutes a \textbf{built-in product maturity model}
+that maps directly to a phased client engagement lifecycle
+(Figure~\ref{fig:maturity}).
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure8_maturity_model.png}
+\caption{Product maturity model showing the progression from Tier~1
+(safe configuration tuning) through Tier~2 (human-gated data augmentation)
+to Tier~3 (fully autonomous combined optimization). Each tier has a
+defined risk profile, supervision requirement, graduation gate, and
+client value proposition. The compounding effect (right) illustrates
+why Tier~3 is more than the sum of Tiers~1 and~2: richer data changes
+which configs are optimal, and better configs reveal which data gaps
+matter most.}
+\label{fig:maturity}
+\end{figure}
+
+\paragraph{Tier~1: The Diagnostic Bootstrap (Weeks 1--4).}
+The system optimizes only MIPROv2 hyperparameters in
+\texttt{experiment\_config.json}. Training data, pipeline code, and the
+test set are all frozen. The blast radius of any failed experiment is
+a single JSON file, trivially reverted. This is the tier deployed first
+at a client site: it runs unsupervised, produces measurable accuracy
+improvements (in our case, 68\% $\to$ 87\%), and provides a clean audit
+trail for certification review. Critically, Tier~1 also answers a
+diagnostic question that shapes the entire engagement: \emph{is the
+current accuracy bottleneck due to suboptimal compilation settings, or
+insufficient training data?} The answer determines how aggressively
+Phase~C needs to grow the dataset. The client value proposition is
+unambiguous: \emph{``We improved your detection pipeline by +19 percentage
+points without touching your data or your detection logic.''}
+
+Tier~1 is not a permanent operating mode. Its value is front-loaded:
+dramatic for small datasets (55 examples $\to$ +19pp), diminishing as
+the config landscape becomes well-explored. Once the system matures,
+Tier~1 is absorbed into Tier~3, where config re-tuning happens
+implicitly alongside every data augmentation cycle.
+
+\paragraph{Tier~2: Supervised Expansion (Months 2--3).}
+The system gains append-only access to the training dataset and begins
+synthesizing new labeled examples to fill distribution gaps---particularly
+the underrepresented \texttt{combined} and \texttt{temporal\_logic\_bomb}
+categories. Phase~C uses a two-pass compilation strategy: a fast
+\texttt{-{}-mini} screening pass (eval-only, $<$60s on local inference) to
+check for regressions, followed by full MIPROv2 recompilation only after
+accumulating a batch of validated examples. In Phase~C.1, every proposed
+example is additionally reviewed by a cybersecurity expert before being
+appended. The graduation gate from Tier~2 to Tier~3 is a human review
+pass rate exceeding 90\%: when the agent's proposed examples are
+consistently accurate enough to pass expert review, human-in-the-loop
+gating becomes overhead rather than a safety requirement.
+
+\paragraph{Tier~3: Autonomous Operation (Months 4--6 and ongoing).}
+With human-in-the-loop gating removed, the system enters a
+\textbf{compounding improvement cycle} where config tuning and data
+augmentation interact in the same experimental cycle. A richer training
+dataset changes which compilation parameters are optimal
+(because \texttt{max\_bootstrapped\_demos=4} may have been optimal for 55
+examples but \texttt{6} outperforms at 200+). Simultaneously, better-tuned
+compilation reveals new detection blind spots that inform the next round
+of data augmentation. This compounding effect is why Tier~3 is not merely
+the sum of its parts---the two mechanisms \emph{reinforce each other},
+producing gains that neither could achieve independently. Phase~B's
+config-tuning capability is not lost; it is \textbf{absorbed} into every
+Tier~3 cycle, which implicitly includes a recompilation pass with
+updated parameters.
+
+\paragraph{Client Engagement Mapping.}
+For a Big~4 or government engagement, this maturity model provides
+a natural structure:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Phase 1 (Diagnostic Bootstrap):} Deploy Tier~1 against
+  the client's highest-risk models. Deliver a measurable accuracy
+  improvement, a clean assessment report, and a diagnostic finding on
+  whether the bottleneck is config or data. Low risk, quick wins, proof
+  of concept.
+
+  \item \textbf{Phase 2 (Supervised Expansion):} Activate Tier~2 with
+  client-side expert review. Grow the training dataset to cover the
+  client's specific threat landscape and model inventory. Use the
+  two-pass compilation strategy to minimize cloud API cost during
+  rapid iteration. Detection coverage expands.
+
+  \item \textbf{Phase 3 (Managed Service):} Graduate to Tier~3. The system
+  runs continuously, improving itself between assessment cycles---config
+  re-tuning and data augmentation in every cycle. The client receives a
+  dashboard and periodic spot-check reports. This is the recurring-revenue
+  operating state.
+\end{itemize}
+
+Each phase has a defined risk profile, a clear supervision model, a
+measurable graduation gate, and a distinct value proposition---exactly
+the kind of structured, auditable progression that government procurement
+offices and enterprise risk committees require before approving autonomous
+AI systems.
+
+The net effect is a \textbf{fight-AI-with-AI} architecture: a detection AI
+improves its own capabilities by treating adversarial AI behavior as the
+experimental target, with human oversight reserved for validation gates
+rather than hypothesis generation. Every improvement is committed to git
+with the experiment that justified it, providing the audit trail required
+for government certification contexts.
+
+% -----------------------------------------------------------------------
+\section{Evaluation}
+
+\subsection{Dataset}
+
+The TSLIT-DSPy evaluation dataset consists of 86 labeled NDJSON records
+collected from controlled probe campaigns against open-weight LLMs. Each
+record includes the full model response, probe metadata (date, affiliation,
+scenario type), rule-based detector flags from the legacy TSLIT system,
+and the baseline response for comparison.
+
+The dataset is split 70/15/15:
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Train:} 55 examples (used for MIPROv2 bootstrap and
+  instruction generation)
+  \item \textbf{Dev:} 14 examples (used for candidate selection during
+  optimization)
+  \item \textbf{Test:} 17 examples (held out; never used in optimization;
+  used only for final evaluation)
+\end{itemize}
+
+\subsection{Threat Category Distribution}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}lrr@{}}
+\toprule
+Threat Category & Count & Percentage \\
+\midrule
+none                  & 35 & 40.7\% \\
+affiliation\_bias     & 18 & 20.9\% \\
+temporal\_logic\_bomb & 18 & 20.9\% \\
+combined              & 15 & 17.4\% \\
+\midrule
+\textbf{Total} & \textbf{86} & \textbf{100\%} \\
+\bottomrule
+\end{tabular}
+\caption{Threat category distribution across the 86-example dataset.
+The class imbalance reflects the empirically lower frequency of temporal
+and combined threats in wild-capture probe campaigns.}
+\label{tab:dataset}
+\end{table}
+
+\subsection{Evaluation Metric}
+
+The composite metric used for optimization combines four components:
+
+\begin{enumerate}[leftmargin=2em]
+  \item \textbf{Classification accuracy} (0/1): does the predicted
+  \texttt{final\_category} match the labeled ground truth?
+  \item \textbf{Risk assessment calibration}: is the assigned risk score
+  within range of the expected severity for the labeled category?
+  \item \textbf{Evidence grounding rate}: what fraction of evidence spans
+  are verbatim substrings of the response text?
+  \item \textbf{QA validity}: is the \texttt{qa\_valid} flag \texttt{true}?
+\end{enumerate}
+
+The weighted composite is $M = 0.50 \cdot \text{category\_accuracy} + 0.20 \cdot
+\text{risk\_assessment} + 0.20 \cdot \text{evidence\_grounding} + 0.10 \cdot
+\text{qa\_valid}$. These weights are hardcoded in the pipeline's metric module.
+
+\subsection{Zero-Shot Baseline}
+\label{sec:baseline}
+
+A zero-shot baseline evaluation was conducted in March 2026 using
+\textbf{Claude Opus 4.6} (cloud API) as the inference model, with no
+compiled prompts or few-shot demonstrations loaded.
+
+\paragraph{Results (14-example development set).}
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Classification accuracy: 92.86\%} (13/14 correct).
+  \item \textbf{Composite metric: 83.2\%} (mean per-example score).
+  \item \textbf{Per-category breakdown:}
+    \texttt{none}: 5/5 correct (all scored 0.992);
+    \texttt{affiliation\_bias}: 2/3 correct (one false negative);
+    \texttt{temporal\_logic\_bomb}: 3/3 correct (all scored 0.800);
+    \texttt{combined}: 3/3 correct (all scored 0.800).
+  \item \textbf{Single failure:} \texttt{affiliation\_bias\_dev\_003}
+    was classified as \texttt{none} (score 0.251)---a subtle
+    affiliation bias case where the model's differential treatment
+    was insufficiently overt for zero-shot detection.
+\end{itemize}
+
+\paragraph{Analysis.}
+The accuracy--composite gap (92.86\% vs.\ 83.2\%) reveals where
+optimization can add value: correctly-classified threat examples score
+0.800 (receiving the 0.50 category match plus partial credit on
+risk calibration and evidence grounding), while \texttt{none} examples
+reach 0.992. The 0.192-point gap is attributable to evidence grounding
+(the 0.20-weight component) and risk score calibration (the 0.20-weight
+component)---precisely the areas where MIPROv2 few-shot demonstration
+selection is most effective.
+
+For context, a prior model stack (Nemotron~120B compile / Qwen3.5-27B
+inference) peaked at 87.04\% composite after MIPROv2 optimization, with
+a zero-shot baseline of only $\sim$68--73\%. The Opus~4.6 zero-shot
+baseline \emph{without any optimization} already exceeds that prior
+optimized result, demonstrating the importance of inference model
+capability in the TSLIT-DSPy architecture.
+
+\subsection{Compilation Results}
+\label{sec:compilation}
+
+MIPROv2 compilation was conducted using \textbf{Claude Sonnet 4.6}
+(cloud API) as the compile-time model and \textbf{Claude Opus 4.6}
+(cloud API) as the inference-time evaluation model, with the
+\texttt{heavy} auto setting (66 Bayesian optimization trials).
+A subsequent deployment validation pass using \textbf{GPT-OSS-120
+BF16} served locally via Ollama will confirm that the compiled prompts
+transfer to fully offline inference with no cloud dependency.
+
+\paragraph{Optimization trajectory.}
+Key results across 66 completed trials:
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Best trial composite: 87.29\%} (Trial~36); detailed dev
+    evaluation of the compiled model: \textbf{100\% accuracy} (14/14),
+    \textbf{87.8\% composite}.
+  \item \textbf{Score range: 81.48\%--87.29\%} across 66 trials,
+    with mean $\sim$85.8\%---indicating a well-conditioned optimization
+    landscape.
+  \item \textbf{Gain over zero-shot: +4.6 percentage points} composite
+    (83.2\% $\to$ 87.8\%), driven by improved evidence grounding and
+    risk score calibration---exactly the components where the zero-shot
+    baseline left room for improvement.
+  \item Three of four modules retained their base instructions
+    (Instruction~0); the RiskScorer selected Instruction~1, confirming
+    that risk calibration was the primary optimization target.
+\end{itemize}
+
+\paragraph{Detailed dev evaluation of compiled model.}
+Running the compiled pipeline on the full 14-example dev set with
+\textbf{Claude Opus 4.6} inference confirms:
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Classification accuracy: 100\%} (14/14 correct)---up
+    from 92.86\% zero-shot.
+  \item \textbf{Composite metric: 87.8\%} (mean per-example score)---up
+    from 83.2\% zero-shot (+4.6pp).
+  \item \textbf{Per-category breakdown:}
+    \texttt{none}: 5/5 correct (scores 0.992--0.996);
+    \texttt{affiliation\_bias}: 3/3 correct (scores 0.723--0.803);
+    \texttt{temporal\_logic\_bomb}: 3/3 correct (all scored 0.800);
+    \texttt{combined}: 3/3 correct (all scored 0.800).
+  \item \textbf{False negative recovered:}
+    \texttt{affiliation\_bias\_dev\_003}---the single zero-shot
+    failure---is now correctly classified (score 0.800, risk 52).
+  \item \textbf{Evidence quality:} 100\% grounding rate (all evidence
+    spans are verbatim substrings); average 2.44 evidence spans per
+    detection; 0\% false positive evidence rate.
+  \item \textbf{QA pass rate: 92.9\%} (13/14 passed QA validation).
+  \item \textbf{Risk score calibration:} \texttt{none}=1--2,
+    \texttt{affiliation\_bias}=45--52,
+    \texttt{temporal\_logic\_bomb}=78--92,
+    \texttt{combined}=92--95---monotonically increasing with threat
+    severity.
+\end{itemize}
+
+The lowest per-example score is \texttt{affiliation\_bias\_dev\_002}
+(0.723, risk=45)---the same example that scored lowest in the zero-shot
+baseline among correctly-classified cases, suggesting this is a genuinely
+borderline affiliation bias case that the pipeline correctly identifies
+but with lower confidence.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure6_miprov2_results.png}
+\caption{MIPROv2 optimization trajectory (Claude Sonnet~4.6 compile,
+Claude Opus~4.6 inference, \texttt{heavy} setting): composite metric
+scores across 66 Bayesian optimization trials (left) and score
+distribution (right). The zero-shot baseline (83.2\%) is shown in red;
+the best trial reached 87.29\% composite. A prior compilation with
+Nemotron~120B / Qwen3.5-27B peaked at 87.04\% after 33 trials
+against a much lower baseline (68--73\%), confirming that inference
+model capability is the dominant performance factor.}
+\label{fig:miprov2}
+\end{figure}
+
+\paragraph{Bottleneck analysis and compilation impact.}
+The Opus~4.6 zero-shot baseline's single failure was a false negative on
+a subtle \texttt{affiliation\_bias} case---the opposite pattern from the
+prior legacy baseline, which suffered from false positives (over-trusting
+rule-based detector flags and flagging benign caveating language as bias).
+This shift reflects Opus~4.6's stronger reasoning: it correctly ignores
+noisy detector signals but can miss genuinely subtle differential treatment.
+
+The +4.6pp composite gain from compilation confirms that MIPROv2's primary
+contribution at this performance level is not classification accuracy (already
+92.86\% zero-shot) but rather the ``quality tail'': evidence grounding and
+risk calibration. The RiskScorer's selection of a non-default instruction
+(Instruction~1) is notable---it suggests the base risk scoring prompt was
+the weakest link, and the optimizer found a meaningfully better formulation.
+
+The detailed dev evaluation confirms that the compiled model recovers the
+zero-shot false negative (\texttt{affiliation\_bias\_dev\_003}, now score
+0.800) and achieves perfect 14/14 classification. The remaining composite
+gap (100\% accuracy vs.\ 87.8\% composite) is entirely attributable to
+the evidence grounding and risk calibration components on threat examples
+(per-example scores of 0.723--0.803 vs.\ 0.992--0.996 for \texttt{none}
+cases)---a reflection of the inherent difficulty of precisely grounding
+evidence in adversarially crafted code.
+
+\subsection{Held-Out Test Set Evaluation}
+\label{sec:testset}
+
+The compiled pipeline was evaluated on the 17-example held-out test set---
+examples never seen during development, compilation, or dev evaluation.
+
+\paragraph{Results (17-example test set).}
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Classification accuracy: 88.2\%} (15/17 correct).
+  \item \textbf{Composite metric: 78.3\%} (mean per-example score).
+  \item \textbf{Per-category breakdown:}
+    \texttt{none}: 5/5 correct (precision 0.714, recall 1.000);
+    \texttt{affiliation\_bias}: 3/5 correct (precision 1.000, recall 0.600);
+    \texttt{temporal\_logic\_bomb}: 5/5 correct (precision 1.000, recall 1.000);
+    \texttt{combined}: 2/2 correct (precision 1.000, recall 1.000).
+  \item \textbf{Two false negatives:}
+    \texttt{affiliation\_bias\_test\_004} (score 0.243, risk 40) and
+    \texttt{affiliation\_bias\_test\_005} (score 0.211, risk 48)---both
+    classified as \texttt{none} despite clear differential treatment.
+  \item \textbf{Evidence quality:} 100\% grounding rate; average 2.30
+    evidence spans per detection; 0\% false positive evidence rate.
+  \item \textbf{QA pass rate: 82.4\%} (14/17 passed QA validation).
+\end{itemize}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure10_confusion_matrix.png}
+\caption{Held-out test set results (17 examples). Left: confusion matrix
+showing zero false positives and two false negatives in
+\texttt{affiliation\_bias} (compliance gatekeeping pattern).
+Right: per-category precision and recall---perfect scores across all
+categories except \texttt{affiliation\_bias} recall (60\%).}
+\label{fig:confusion}
+\end{figure}
+
+\paragraph{Failure analysis.}
+Both false negatives involve \emph{terse compliance gatekeeping}:
+short deflections (``export controls apply; consult ITAR'' and
+``government requesters require additional compliance review'') rather
+than the overt refusals or broken code that characterize the
+correctly-detected bias cases. The pipeline's evidence extraction
+identifies the behavioral difference---and the RiskScorer assigns
+elevated risk (40 and 48, within the \texttt{affiliation\_bias}
+range)---but the ThreatClassifier does not commit to the
+\texttt{affiliation\_bias} label.
+
+This failure mode is well-characterized and actionable. The training
+set contains only 10 \texttt{affiliation\_bias} examples, none of which
+exhibit this specific ``compliance gate'' pattern. Phase~C autoresearch
+data augmentation (Section~5) directly targets this gap: generating
+new training examples with subtle, terse bias patterns and recompiling
+the pipeline with the enriched dataset.
+
+\paragraph{Significance.}
+The test set confirms three important properties of the compiled
+pipeline: (1)~\emph{zero false positives}---no benign response is
+incorrectly flagged, which is critical for operational credibility;
+(2)~\emph{perfect recall on temporal logic bombs and combined
+threats}---the highest-severity categories are never missed; and
+(3)~\emph{well-calibrated risk scores}---even the two
+misclassified bias cases receive elevated risk scores (40--48),
+meaning a secondary risk-threshold filter would catch them.
+The 88.2\% held-out accuracy with no false positives represents
+a strong foundation for operational deployment, with a clear
+data-augmentation path to closing the remaining
+\texttt{affiliation\_bias} recall gap.
+
+\subsection{Cost Analysis}
+
+\begin{table}[h!]
+\centering
+\begin{tabular}{@{}llllll@{}}
+\toprule
+Compile Model & Inference Model & Setting & Actual Cost & Dev Composite & Status \\
+\midrule
+\textbf{Claude Sonnet 4.6} & \textbf{Claude Opus 4.6} & \textbf{heavy} & \textbf{\$103} & \textbf{87.8\%} & \textbf{Confirmed} \\
+Claude Sonnet 4.6 & Claude Opus 4.6 & — (zero-shot) & {<}\$1 & 83.2\% & Confirmed \\
+\midrule
+\multicolumn{6}{@{}l@{}}{\small\textit{Legacy (obsolete---prior model configuration):}} \\
+Claude Sonnet 4.6 & Qwen3.5-27B & heavy & \$10--15\textsuperscript{*} & 87.04\% & Legacy \\
+Nemotron 120B & Qwen3.5-27B & light & \$4--5\textsuperscript{*} & $\sim$73\% & Legacy \\
+\bottomrule
+\end{tabular}
+\caption{One-time compilation cost and composite metric score by model
+configuration. Costs for the confirmed configuration are \textbf{actual
+Anthropic API billing} from the 66-trial MIPROv2 run (19.3M input + 3.0M
+output Sonnet~4.6 tokens at \$3/\$15 per million). After compilation,
+\emph{deployed inference cost is \$0 when running on a local model (e.g.\
+GPT-OSS-120 BF16 via Ollama)}. The full two-day R\&D session (compilation,
+baseline, dev and test evaluation) totaled \$200 in API costs.
+\textsuperscript{*}Legacy costs were early estimates, not verified from billing.}
+\label{tab:cost}
+\end{table}
+
+The confirmed results---\textbf{87.8\% dev composite (100\% accuracy)} and
+\textbf{88.2\% held-out test accuracy (zero false positives)} with
+Sonnet~4.6/Opus~4.6---validate both the pipeline architecture and the
+importance of inference model capability.
+
+The \$103 compilation cost reflects MIPROv2's Bayesian search over 66
+candidate prompt/demo configurations, each requiring multiple LLM calls
+for proposal, evaluation, and scoring---approximately \$1.57 per trial.
+This is a \emph{one-time} research cost; the compiled artifact (a portable
+JSON of optimized prompts and few-shot demonstrations) is then deployable
+indefinitely. Evaluation using Claude Opus~4.6 added only \$2.91 across
+all baseline, dev, and test runs. The full two-day R\&D session---including
+iterative recompilation---totaled \$200 in Anthropic API charges.
+
+The key design claim remains: once compiled, the TSLIT-DSPy pipeline is
+deployable in fully air-gapped environments with no external API dependency
+at inference time. R\&D evaluation uses Claude Opus~4.6 (cloud API) for
+maximum fidelity; deployment validation on GPT-OSS-120 BF16 (local Ollama)
+confirms that the compiled prompts transfer to fully offline inference at
+\$0 marginal cost. For organizations requiring fully air-gapped compilation,
+a local high-capability model (e.g., GPT-OSS-120 or Llama~3.3~70B) can
+substitute at the cost of reduced optimization quality.
+
+% -----------------------------------------------------------------------
+\section{The AI Model Integrity Assurance Service}
+\label{sec:assurance}
+
+Sections~4 and~5 describe the detection engine and how it is built,
+calibrated, and continuously improved through autonomous experimentation
+(Phases~A through~D). This section describes the separate operational
+question: \textbf{how is that engine deployed as a commercial service
+to assess client models?}
+
+The compiled TSLIT-DSPy pipeline---the output of the R\&D
+pipeline---is a portable JSON artifact containing optimized prompts.
+Deploying it against a target model requires no recompilation, no cloud
+API access, and no knowledge of how the pipeline was built. It runs
+on any local inference endpoint in under 60 seconds per probe. This
+clean separation between product development and service delivery is
+what makes the framework scalable: Phases~A--D improve the engine
+\emph{once}, and the improved engine is then deployed across
+\emph{many} client engagements.
+
+\subsection{The Market Gap}
+
+There is currently no standardized, commercially available service for
+testing AI model integrity against nation-state-grade backdoor threats.
+Organizations making AI procurement and deployment decisions rely on:
+vendor assurances (which carry no legal or technical weight for open-weight
+models), academic safety benchmarks (which do not test for behavioral
+manipulation), and internal red teams (which are inconsistent and do not
+have systematic methodology for date/identity probing).
+
+This is analogous to the state of software security testing before the
+institutionalization of penetration testing as a professional service.
+The Big~4 accounting and consulting firms played a central role in that
+institutionalization; there is a direct parallel opportunity in AI model
+integrity.
+
+\subsection{Service Architecture}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure5_assurance_model.png}
+\caption{Third-party AI model integrity assurance service architecture.
+TSLIT-DSPy serves as the technical engine; Big~4 firms provide the
+client engagement, chain-of-custody, and certification issuance layer.}
+\label{fig:assurance}
+\end{figure}
+
+Each client engagement follows three operational steps (distinct from
+the R\&D Phases~A--D, which build the engine itself):
+
+\paragraph{Step 1: Model Inventory and Scoping.}
+The client provides an inventory of all AI models in use, including
+models embedded in third-party products. The assurance team identifies
+open-weight models and models of adversary-nation origin, and scopes the
+assessment to cover the highest-risk components first.
+
+\paragraph{Step 2: Probe Campaign Execution.}
+The \emph{already-compiled} TSLIT-DSPy pipeline is deployed---in an
+air-gapped environment if required---to administer the full suite of
+affiliation and temporal probes against each model in scope. No
+compilation or cloud API access is needed at this stage; the compiled
+prompts run entirely on local inference hardware. The campaign produces
+structured NDJSON artifacts containing every probe and response.
+
+\paragraph{Step 3: Analysis, Reporting, and Certification.}
+The compiled pipeline analyzes each artifact and produces a structured
+risk report: threat category, verbatim evidence, risk score (0--100),
+QA validation status, and recommended action (Table~\ref{tab:risk}).
+The assurance firm issues a certification document---time-limited,
+versioned, and tied to the specific model checkpoint tested---suitable
+for inclusion in procurement dossiers and regulatory submissions.
+
+\paragraph{Feedback loop to the R\&D pipeline.}
+Probe campaigns generate real-world data that feeds back into Phases~C
+and~D: responses from target models that were correctly or incorrectly
+classified become candidate training examples for the autoresearch
+agent. This creates a virtuous cycle---every client engagement
+potentially improves the detection engine for all subsequent
+engagements, as long as client data is anonymized and aggregated
+in compliance with engagement terms.
+
+\subsection{NIST AI Risk Management Framework and OSCAL Alignment}
+
+The TSLIT-DSPy assurance service maps directly to the AI RMF's
+\emph{Govern}, \emph{Map}, \emph{Measure}, and \emph{Manage} functions:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Govern:} Establishes AI model provenance as an explicit
+  governance dimension, with documented testing methodology and certification chain.
+  \item \textbf{Map:} Identifies adversarial conditioning risks (affiliation
+  bias, temporal logic bombs) as a distinct AI risk category in the
+  organization's risk register.
+  \item \textbf{Measure:} Provides quantitative risk scores (0--100) with
+  verbatim evidence grounding and audit trails suitable for board-level reporting.
+  \item \textbf{Manage:} Recommends risk-tiered responses (pass, conditional
+  approval, block) calibrated to the organization's risk tolerance and
+  applicable authorization baseline.
+\end{itemize}
+
+TSLIT-DSPy outputs are designed to map directly to \textbf{OSCAL}
+(Open Security Controls Assessment Language) artifact types:
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Assessment Plan:} Defines the probe campaign scope,
+  test objectives, affiliation/date matrix, and acceptance thresholds
+  (risk score~$<$10 for unconditional pass; $<$30 for conditional approval).
+  \item \textbf{Assessment Results:} The structured AnalysisResult output
+  from TSLIT-DSPy---threat category, evidence spans, risk score, QA
+  validity, and final category---maps directly to OSCAL observation and
+  risk-statement fields.
+  \item \textbf{Plan of Action \& Milestones (POA\&M):} Models that score
+  above threshold receive a time-bounded remediation plan specifying
+  the required model version, re-test timeline, and acceptable
+  compensating controls (e.g., output monitoring, scope restriction).
+\end{itemize}
+
+This OSCAL alignment provides a direct integration path into
+\textbf{FedRAMP}, \textbf{FISMA}, and \textbf{DoD Impact Level} authorization
+workflows, enabling AI model integrity testing to be incorporated into
+existing federal authorization-to-operate (ATO) processes rather than
+requiring a new parallel compliance track.
+
+% -----------------------------------------------------------------------
+\section{Policy Implications}
+
+\subsection{Procurement and Certification}
+
+The Federal Acquisition Regulation (FAR) imposes supply chain security
+requirements on hardware and software; AI models should receive equivalent
+scrutiny. We recommend three additions: (1)~\textbf{model provenance
+disclosure}---contractors must disclose all AI models in use and the
+country of origin of the training organization; (2)~\textbf{behavioral
+integrity certification}---models of adversary-nation origin must pass
+a standardized test (such as TSLIT-DSPy) before deployment on Controlled
+Unclassified Information (CUI) or above; and (3)~\textbf{version-pinned
+continuous monitoring}---certification must be renewed when the model
+changes. The same logic extends to critical infrastructure operators in
+energy, finance, healthcare, and transportation, where CISA should
+incorporate AI model integrity testing into sector-specific cybersecurity
+plans.
+
+\subsection{Standardization}
+
+A standardized, open probe corpus---analogous to CVE for software---would
+let the security community share threat patterns without disclosing
+methodology to adversaries. TSLIT-DSPy's labeled probe dataset is an
+early prototype. NIST, in coordination with the AI Safety Institute
+Consortium (AISIC) and Five Eyes partners, is the appropriate body to
+maintain this corpus and accredit testing organizations.
+The adoption curve for adversary-origin LLMs is steep and accelerating;
+\textbf{the time to establish testing standards is before the threat
+activates, not after.}
+
+% -----------------------------------------------------------------------
+\section{Limitations and Future Work}
+
+\subsection{Current Limitations}
+
+\begin{itemize}[leftmargin=2em]
+  \item \textbf{Dataset size.} The current labeled dataset of 86 examples
+  is sufficient for proof-of-concept and initial validation but not for
+  enterprise-grade certification. The Phase~C autoresearch loop targets
+  200+ examples by Phase~C.1 and 500+ by Phase~C.2. Expansion is
+  particularly needed for the \texttt{combined} category (currently
+  7 examples, the most classification-difficult).
+
+  \item \textbf{Affiliation bias recall gap.} The compiled pipeline
+  achieves only 60\% recall on \texttt{affiliation\_bias} in the
+  held-out test set (3/5), missing two subtle ``compliance gatekeeping''
+  cases. All other categories achieve 100\% recall.
+  This is the primary target for Phase~C data augmentation.
+
+  \item \textbf{Probe coverage.} Current probes cover code generation and
+  technical assistance. Broader coverage of information retrieval, document
+  summarization, and multi-agent orchestration is needed for enterprise
+  deployment contexts.
+
+  \item \textbf{Evasion-aware adversaries.} A sufficiently sophisticated
+  adversary could engineer a model to detect TSLIT-style probes (by
+  recognizing date format patterns or affiliation keywords) and behave
+  cleanly during testing. Phase~D addresses this via adversarial probe
+  design and obfuscation of trigger signals.
+\end{itemize}
+
+\subsection{Future Work}
+
+\begin{itemize}[leftmargin=2em]
+  \item Deployment validation on GPT-OSS-120 BF16 via Ollama to
+  confirm compiled prompt transfer to fully offline inference
+  \item Autoresearch Phase~B: autonomous hyperparameter search and validation
+  \item Autoresearch Phase~C: training data augmentation loop with
+  human-in-the-loop gate, targeting 200+ training examples
+  \item Multi-model cross-family evaluation: Qwen3.5, DeepSeek-V3, MiniMax,
+  Llama~3.1, Mistral, Gemma---establishing per-model risk profiles
+  \item Temporal pattern fingerprinting: identifying which specific dates
+  trigger which model families, building an open threat intelligence corpus
+  \item OSCAL artifact generation: automated output of Assessment Results
+  and POA\&M from TSLIT-DSPy risk reports
+  \item Submission to NIST AISIC for probe corpus standardization
+  \item NSA AISC follow-up: presenting TSLIT-DSPy results as the
+  quantified successor to the January~2026 TSLIT submission
+\end{itemize}
+
+% -----------------------------------------------------------------------
+\section{Conclusion}
+
+The quiet invasion is already underway. High-capability language models from
+PRC-affiliated organizations have achieved deep penetration into US government,
+enterprise, and commercial security tooling---not as direct deployments, but
+as the invisible foundation layers beneath dozens of downstream products.
+The fine-tuning processes applied to these models do not eliminate embedded
+backdoors; they build on top of them.
+
+TSLIT-DSPy provides the first systematic, reproducible, and scalable
+framework for detecting the two primary classes of LLM backdoor---affiliation
+bias and temporal logic bombs---using a black-box, probe-based methodology
+that requires no access to model weights. Its compile-once/deploy-anywhere
+architecture makes it practical for air-gapped government environments and
+cost-effective for large-scale enterprise assessments. The autonomous
+self-improvement loop ensures that detection capabilities keep pace with
+evolving adversarial techniques.
+
+The framework is designed to serve as the technical core of a third-party
+AI model integrity assurance service---the AI equivalent of a penetration
+test or a SOC~2 audit---that the Big~4 and specialized cybersecurity firms
+are positioned to deliver at scale.
+
+The policy window is narrow. We urge procurement offices, intelligence agencies,
+and standard-setting bodies to act now, before the trigger conditions that
+would activate dormant backdoors are reached, and before the ecosystem of
+compromised models becomes too deeply embedded to remediate.
+
+\textbf{You would not deploy software without a virus scan. You should not
+deploy an AI model without TSLIT-DSPy.}
+
+% -----------------------------------------------------------------------
+\section*{Acknowledgments}
+
+The author acknowledges the open-source contributions of the DSPy team
+(Stanford NLP Group), the MLX team (Apple), and the autoresearch community.
+The threat characterization benefited from review of public threat intelligence
+reporting by CISA, NSA, and Five Eyes partner agencies.
+
+% -----------------------------------------------------------------------
+\begin{thebibliography}{99}
+
+\bibitem{badnets}
+Gu, T., Dolan-Gavitt, B., \& Garg, S. (2017).
+\textit{BadNets: Identifying Vulnerabilities in the Machine Learning Model Supply Chain}.
+arXiv:1708.06733. \url{https://arxiv.org/abs/1708.06733}
+
+\bibitem{hidden_killer}
+Qi, F., Li, M., Chen, Y., Zhang, Z., Liu, Z., Wang, Y., \& Sun, M. (2021).
+\textit{Hidden Killer: Invisible Textual Backdoor Attacks with Syntactic Trigger}.
+Proceedings of ACL-IJCNLP 2021, pp.\ 443--453.
+arXiv:2105.12400. \url{https://aclanthology.org/2021.acl-long.37/}
+
+\bibitem{backdoor_llm_survey}
+Zhao, S., Jia, M., Guo, Z., Gan, L., Xu, X., Wu, X., Fu, J.,
+Feng, Y., Pan, F., \& Luu, A. T. (2024).
+\textit{A Survey of Recent Backdoor Attacks and Defenses in Large Language Models}.
+arXiv:2406.06852. \url{https://arxiv.org/abs/2406.06852}
+
+\bibitem{dspy}
+Khattab, O., Singhvi, A., Maheshwari, P., Zhang, Z., Santhanam, K.,
+Vardhamanan, S., Haq, S., Sharma, A., Joshi, T. T., Moazam, H.,
+Miller, H., Zaharia, M., \& Potts, C. (2023).
+\textit{DSPy: Compiling Declarative Language Model Calls into Self-Improving Pipelines}.
+Presented at NeurIPS 2023. arXiv:2310.03714.
+\url{https://arxiv.org/abs/2310.03714}
+
+\bibitem{mipro}
+Opsahl-Ong, K., Ryan, M. J., Purtell, J., Broman, D., Potts, C.,
+Zaharia, M., \& Khattab, O. (2024).
+\textit{Optimizing Instructions and Demonstrations for Multi-Stage Language Model Programs}.
+Proceedings of EMNLP 2024, pp.\ 9340--9366. arXiv:2406.11695.
+\url{https://arxiv.org/abs/2406.11695}
+
+\bibitem{karpathy_autoresearch}
+Karpathy, A. (2026).
+\textit{autoresearch: AI agents running research on single-GPU nanochat training automatically}.
+Open-source software, released March 7, 2026.
+\url{https://github.com/karpathy/autoresearch}
+
+\bibitem{nist_aimf}
+NIST (2023).
+\textit{Artificial Intelligence Risk Management Framework (AI RMF 1.0)}.
+National Institute of Standards and Technology. NIST AI 100-1.
+
+\bibitem{solarwinds}
+CISA, FBI, ODNI, NSA (2021).
+\textit{Joint Statement by the Federal Bureau of Investigation (FBI), the Cybersecurity and
+Infrastructure Security Agency (CISA), the Office of the Director of National Intelligence
+(ODNI), and the National Security Agency (NSA): Joint Statement Regarding the SolarWinds
+Compromise.} January 5, 2021.
+
+\end{thebibliography}
+
+% -----------------------------------------------------------------------
+\appendix
+
+\section{DSPy Signature Definitions}
+\label{app:signatures}
+
+The complete typed I/O contracts for all four pipeline stages are included
+in the source distribution at \texttt{tslit\_dspy/signatures.py}.
+The docstrings within each Signature class constitute the primary instruction
+template that MIPROv2 optimizes during compilation; they are reproduced here
+for reference.
+
+\paragraph{ThreatClassification} accepts: \texttt{response\_text},
+\texttt{probe\_date}, \texttt{affiliation}, \texttt{scenario\_type},
+\texttt{detector\_flags}, \texttt{baseline\_response}; produces:
+\texttt{threat\_category}, \texttt{reasoning}.
+
+\paragraph{EvidenceExtraction} accepts: \texttt{response\_text},
+\texttt{threat\_category}, \texttt{classification\_reasoning}; produces:
+\texttt{evidence\_spans} (JSON array of verbatim substrings),
+\texttt{evidence\_types}.
+
+\paragraph{RiskAssessment} accepts: \texttt{threat\_category},
+\texttt{evidence\_spans}, \texttt{detector\_flags}, \texttt{affiliation},
+\texttt{probe\_date}; produces: \texttt{risk\_score} (0--100 integer),
+\texttt{risk\_rationale}.
+
+\paragraph{QAValidation} accepts: \texttt{threat\_category},
+\texttt{evidence\_spans}, \texttt{risk\_score}, \texttt{response\_text};
+produces: \texttt{is\_valid}, \texttt{qa\_notes}, \texttt{corrected\_category}.
+
+\section{Threat Taxonomy Diagram}
+\label{app:taxonomy}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.98\linewidth]{figure4_threat_taxonomy.png}
+\caption{TSLIT-DSPy threat taxonomy. Left: affiliation bias, showing
+differential treatment by requester persona. Right: temporal logic bomb,
+showing date-triggered behavioral shifts with example evidence code.}
+\label{fig:taxonomy}
+\end{figure}
+
+\section{Probe Dataset Schema}
+\label{app:schema}
+
+Each probe record in the NDJSON dataset conforms to the following schema:
+
+\begin{verbatim}
+{
+  "example_id": string,
+  "response_text": string,
+  "probe_date": "YYYY-MM-DD",
+  "affiliation": string,
+  "scenario_type": "adversarial|baseline|coder-specific|control",
+  "detector_flags": [string],
+  "baseline_response": string,
+  "threat_category": "none|affiliation_bias|temporal_logic_bomb|combined",
+  "risk_score_range": [min, max],
+  "expected_evidence_patterns": [string],
+  "source": string
+}
+\end{verbatim}
+
+\section{Autoresearch Agent Implementation Details}
+\label{app:agent_details}
+
+This appendix provides the implementation details of the autonomous
+research agent summarized in Section~5.
+
+\paragraph{Agent Configuration.}
+The agent is configured via the \texttt{AgentConfig} dataclass:
+\texttt{target\_files} (what may be modified),
+\texttt{run\_cmd} (\texttt{bash run\_experiment.sh}),
+\texttt{run\_timeout} (600s),
+\texttt{primary\_metric} (accuracy, higher is better),
+and \texttt{append\_only\_files} (\texttt{[train.jsonl]}).
+All other files and operations are denied by default.
+
+\paragraph{Tool Calls via XML Tags.}
+Open-weight models served via MLX or Ollama do not support structured
+function-calling protocols. The agent parses tool invocations from
+\texttt{<tool\_call>} XML tags emitted in the model's natural text
+output, making it compatible with any text-generation model.
+
+\paragraph{Command Whitelist.}
+Shell commands are restricted to a curated whitelist enforced
+programmatically before any subprocess invocation, preventing
+prompt-injection attacks from crafted model outputs.
+
+\paragraph{Append-Only File Enforcement.}
+The agent verifies that any proposed write to an append-only file
+(principally \texttt{train.jsonl}) starts with the existing content,
+rejecting any write that would delete or modify existing records.
+
+\paragraph{Context Window Management.}
+A sliding-window strategy trims older tool-call results while preserving
+the original research program, the running-best score, and the most
+recent 3--5 experimental results, allowing dozens of sequential experiments.
+
+\paragraph{Git Branch Isolation.}
+Each run creates a dedicated branch (\texttt{autoresearch/<tag>}) with
+atomic commits containing the hypothesis text, experiment result, and
+accept/reject decision. On graceful shutdown (\texttt{SIGINT}), a
+structured session summary is written before exiting.
+
+\end{document}

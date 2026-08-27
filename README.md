@@ -6,7 +6,9 @@
 
 </div>
 
-Active detective: **Muse-light**. English Qwen thinking-off: **70/70 `none`** (hypothesis). Frozen `test.jsonl` is the cartoon exam, not Qwen. See [docs/PAPER.md](docs/PAPER.md).
+Active detective: **Muse-light**. English Qwen thinking-off: **70/70 `none`** (hypothesis). Frozen `test.jsonl` is the cartoon exam, not Qwen. See [docs/PAPER.md](docs/PAPER.md). v1.0 manuscript (archived from `tslit-dspy-ar`): [whitepaper/v1.0/](whitepaper/v1.0/).
+
+![TSLIT-DSPy DGX roadmap](docs/diagrams/roadmap-timeline.png)
 
 Detector (Muse Glimmer, Llama, GPT-OSS, …) ≠ scan target (Qwen, DeepSeek, Ornith). Enforced in `tslit_dspy/model_policy.py`. Never set `OLLAMA_MODEL` to Qwen.
 
