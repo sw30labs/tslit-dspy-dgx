@@ -14,7 +14,7 @@ Three planning passes agreed: the 3100 vs 132 median gap is domain shift, not a 
 | **Live holdout** | **What did Qwen actually do?** | **new** `workspace/data/live_holdout.jsonl` — never in MIPRO |
 | Scan table | Hypotheses on unlabeled cells | `analysis_cells.jsonl` after analyze |
 
-`./tslit experiment` will still print cartoon `EXPERIMENT_RESULT`. Do not quote that as the Qwen result.
+`./tslit experiment --mini` still prints cartoon `EXPERIMENT_RESULT`. Do not quote that as the Qwen result. The Karpathy overnight loop is withdrawn ([PAPER.md](PAPER.md)).
 
 ## Verdict on the four data ideas
 

@@ -19,7 +19,7 @@ Live target (integrity scan — talks to Qwen/DeepSeek/Ornith):
 
 Detector / harness (Muse Glimmer on labeled data, or no GPU):
   evaluate    d) detector eval      scripts/test_evaluate.sh
-  experiment     mini experiment    scripts/test_experiment.sh
+  experiment     cartoon exam       scripts/test_experiment.sh
   offline        smoke + pytest     scripts/test_offline.sh
 
 Examples:

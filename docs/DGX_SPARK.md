@@ -20,7 +20,6 @@ This project’s integrity-testing premise:
 |-------|--------|---------------|
 | MIPROv2 compile | Muse Glimmer (Ollama) | Detection — allowed |
 | Analyzer inference | Muse Glimmer (Ollama) | Detection — allowed |
-| Autoresearch agent | Same Ollama detection tag | Detection — allowed |
 | Models under probe | Qwen, DeepSeek, Ornith, … | Target — any origin |
 
 Policy implementation: `tslit_dspy/model_policy.py`.  
@@ -62,13 +61,15 @@ ollama serve   # if not already running
 ./tslit evaluate --use-compiled --test workspace/data/dev.jsonl
 ```
 
-### Mini experiment (autoresearch-compatible)
+### Cartoon exam (frozen test.jsonl)
 
 ```bash
 ./tslit experiment --mini
 ```
 
-Prints `EXPERIMENT_RESULT: accuracy=…` for agent parsers.
+Prints `EXPERIMENT_RESULT: accuracy=…`. Homework for the detective, **not**
+the Qwen finding. The Karpathy overnight agent is withdrawn — see
+[PAPER.md](PAPER.md).
 
 ### Full MIPROv2 recompile on DGX
 

@@ -1,21 +1,12 @@
 #!/usr/bin/env bash
-# run_experiment.sh — TSLIT-DSPy autoresearch experiment runner
+# run_experiment.sh — hash-guarded cartoon exam (frozen test.jsonl).
 #
-# Reads experiment_config.json, runs MIPROv2 optimization + evaluation,
-# and prints EXPERIMENT_RESULT: accuracy=X.XX for the autoresearch agent to parse.
+# Not the Qwen verdict. Not an autonomous agent. Human tool:
+#   bash scripts/run_experiment.sh           # optimize + exam (hours)
+#   bash scripts/run_experiment.sh --mini    # exam only, existing compiled JSON
 #
-# Usage:
-#   bash run_experiment.sh           # full optimize + evaluate (~2 hours)
-#   bash run_experiment.sh --mini    # evaluate-only, no recompile (~10 min)
-#
-# EXPERIMENT_RESULT line is ALWAYS printed, even on failure (accuracy=0.00).
-# This is enforced by an EXIT trap — not just by per-function error handlers.
-
-# NOTE: We intentionally do NOT use `set -e` here. With `set -e`, any
-# unexpected error (bad JSON parse, failed mkdir, etc.) would exit the script
-# before our error handlers can print the EXPERIMENT_RESULT fallback line.
-# The autoresearch agent would then hang forever waiting for output.
-# Instead, we check return codes explicitly where it matters.
+# EXPERIMENT_RESULT is ALWAYS printed, even on failure (accuracy=0.00),
+# so callers always get a parseable score line.
 set -uo pipefail
 
 # ---------------------------------------------------------------------------
@@ -43,8 +34,8 @@ TEST_SET="$REPO_DIR/workspace/data/test.jsonl"
 TRAIN_SET="$REPO_DIR/workspace/data/train.jsonl"
 DEV_SET="$REPO_DIR/workspace/data/dev.jsonl"
 LIVE_HOLDOUT="$REPO_DIR/workspace/data/live_holdout.jsonl"
-EVAL_OUTPUT="$REPO_DIR/workspace/evaluation/autoresearch_eval.md"
-EVAL_JSON="$REPO_DIR/workspace/evaluation/autoresearch_eval.json"
+EVAL_OUTPUT="$REPO_DIR/workspace/evaluation/cartoon_exam.md"
+EVAL_JSON="$REPO_DIR/workspace/evaluation/cartoon_exam.json"
 HASH_FILE="$REPO_DIR/workspace/.test_jsonl_hash"
 LIVE_HASH_FILE="$REPO_DIR/workspace/.live_holdout_hash"
 
@@ -70,7 +61,7 @@ guard_test_set() {
             echo "ERROR: workspace/data/test.jsonl has been modified!" >&2
             echo "ERROR: Stored hash: $stored_hash" >&2
             echo "ERROR: Current hash: $current_hash" >&2
-            echo "ERROR: This file is LOCKED. The agent must never write to it." >&2
+            echo "ERROR: This file is LOCKED. Do not edit the cartoon exam." >&2
             _printed_result=true
             echo "EXPERIMENT_RESULT: accuracy=0.00 composite=0.00 category_f1=0.00 qa_pass=0.00 grounding=0.00"
             exit 1
@@ -268,7 +259,7 @@ run_evaluate() {
         --compiled "$COMPILED" \
         --output "$EVAL_OUTPUT" \
         --model "$INFERENCE_MODEL" \
-        --title "autoresearch-eval"; then
+        --title "cartoon-exam"; then
         echo "ERROR: Evaluation failed." >&2
         _printed_result=true
         echo "EXPERIMENT_RESULT: accuracy=0.00 composite=0.00 category_f1=0.00 qa_pass=0.00 grounding=0.00"
@@ -352,7 +343,7 @@ print(f'grounding={grounding:.4f}')
 # Main
 # ---------------------------------------------------------------------------
 echo "========================================="
-echo "TSLIT-DSPy autoresearch experiment runner"
+echo "TSLIT-DSPy cartoon exam (frozen test.jsonl — not Qwen)"
 echo "Mode: $([ "$MINI_MODE" = true ] && echo 'MINI (eval-only)' || echo 'FULL (optimize + eval)')"
 echo "========================================="
 

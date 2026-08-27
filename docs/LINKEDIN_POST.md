@@ -42,7 +42,7 @@ Trust isn’t a property of origin. **It’s a property of verifiability.**
 > Research (public): https://github.com/sw30labs/tslit-dspy-ar
 > DGX Spark port: `tslit-dspy-dgx` — Ollama only (`:11434`). Detector: Muse Glimmer. Targets: adversary-origin open weights under test.
 > `./tslit install` → `./tslit doctor` → `./tslit test-campaign` → `./tslit test-campaign-plus` → `./tslit test-campaign-sharp`
-> Policy: American / non-adversary models only in the detection stack. Draft paper still lives in the research repo.
+> Policy: American / non-adversary models only in the detection stack. Living paper: `docs/PAPER.md` in tslit-dspy-dgx (Karpathy loop withdrawn).
 
 ## Notes before posting
 

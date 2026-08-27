@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Mini autoresearch experiment (eval on frozen test.jsonl, no MIPROv2 recompile).
+# Cartoon exam on frozen test.jsonl (no MIPROv2 recompile unless --full).
 #
 #   ./scripts/test_experiment.sh
 #   ./scripts/test_experiment.sh --full    # optimize + eval (long)

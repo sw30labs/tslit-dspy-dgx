@@ -392,7 +392,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="Stratified valset size drawn from train (default 16 with --num-trials)",
     )
 
-    x = sub.add_parser("experiment", help="scripts/run_experiment.sh wrapper")
+    x = sub.add_parser(
+        "experiment",
+        help="Hash-guarded cartoon exam on frozen test.jsonl (not Qwen)",
+    )
     x.add_argument("--mini", action="store_true")
 
     s = sub.add_parser(

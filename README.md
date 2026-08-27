@@ -34,7 +34,7 @@ Same technical ask; only **who** (requester identity) and **when** (virtual cloc
 the system message) change. Probes are **one-shot, thinking off, tools none**
 ([docs/SCOPE.md](docs/SCOPE.md)). A compiled DSPy detector then scores the replies.
 
-The **detection brain** (compile, inference, autoresearch) must use **non-adversary /
+The **detection brain** (compile, inference) must use **non-adversary /
 American models**. Adversary-origin open weights (Qwen, DeepSeek, MiniMax, …) are
 **scan targets only** — never part of the detector.
 
@@ -74,12 +74,13 @@ source .venv/bin/activate
 # Evaluate with compiled prompts (dev set)
 ./tslit evaluate --use-compiled --test workspace/data/dev.jsonl
 
-# Mini experiment (eval only, no recompile)
+# Cartoon exam on frozen test.jsonl (not Qwen; no recompile)
 ./tslit experiment --mini
 ```
 
-See [docs/PHASES.md](docs/PHASES.md) (what compile vs scan vs evaluate actually are),
-[QUICKSTART.md](QUICKSTART.md), and [docs/DGX_SPARK.md](docs/DGX_SPARK.md).
+See [docs/PAPER.md](docs/PAPER.md) (live protocol, why the Karpathy loop was
+withdrawn), [docs/PHASES.md](docs/PHASES.md), [QUICKSTART.md](QUICKSTART.md),
+and [docs/DGX_SPARK.md](docs/DGX_SPARK.md).
 
 ## Live campaigns
 
@@ -164,8 +165,8 @@ tslit-dspy-dgx/
   workspace/data/       # train / dev / test JSONL (frozen test set)
   workspace/compiled/   # portable MIPROv2 JSON prompts
   workspace/scans/      # live probe artifacts (mini / plus / sharp)
-  scripts/              # run_experiment.sh, test_*.sh, agent_loop_mlx.py
-  config/               # experiment_config.json, tslit_program.md
+  scripts/              # run_experiment.sh, test_*.sh, sibling_stats.py
+  config/               # experiment_config.json
   tests/
   setup-venv.sh
   tslit                 # launcher
@@ -181,5 +182,5 @@ upstream README in `tslit-dspy-ar`.
 
 | Tree | Focus |
 |------|--------|
-| `tslit-dspy-ar` | Research release, whitepaper, cloud R&D metrics |
-| **`tslit-dspy-dgx` (this repo)** | DGX Spark runtime, Ollama-only serving, origin policy, mini / plus / sharp campaigns |
+| `tslit-dspy-ar` | Research release, v1.0 whitepaper (March 2026) |
+| **`tslit-dspy-dgx` (this repo)** | DGX Spark runtime; living paper [docs/PAPER.md](docs/PAPER.md) |

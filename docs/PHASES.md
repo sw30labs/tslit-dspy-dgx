@@ -23,14 +23,14 @@ Never put Qwen in `OLLAMA_MODEL`. That env var is the detective only.
 | `workspace/data/train_augmented.jsonl` | Compile mix (~69) | **Compile** when `use_augmented: true` |
 | `workspace/data/live_holdout.jsonl` (10) | Live Qwen **verdict** set. Hash-guarded. | Evaluate only — **never MIPRO** |
 | `workspace/data/dev.jsonl` (14) | Labeled, not frozen | Tune / everyday `evaluate` |
-| `workspace/data/test.jsonl` (17) | Cartoon **exam**. Frozen. Do not edit. | **`experiment` only** (not the Qwen result) |
+| `workspace/data/test.jsonl` (17) | Cartoon **exam**. Frozen. Do not edit. | **`experiment --mini`** / evaluate (not the Qwen result) |
 | `workspace/compiled/tslit_analyzer_optimized.json` | **Active** detective (promoted Muse-light) | analyze / evaluate / `experiment --mini` |
 | `…muse-light.json` | Named Muse compile on the live-length mix | Keep; next compile can write here |
 | `…claude-era.json` | Jul-21 backup | Do not overwrite; not the Qwen story |
 
 Cartoons stay as a **locked stash** (`test.jsonl` exam + ~14 mix anchors). Do not delete them. Do not tell that story as Qwen.
 
-Do not dump all 77 live cells into compile. `EXPERIMENT_RESULT` is the cartoon exam, not the Qwen verdict.
+Do not dump all 77 live cells into compile. `EXPERIMENT_RESULT` is the cartoon exam, not the Qwen verdict. The Karpathy overnight agent is withdrawn ([PAPER.md](PAPER.md)).
 
 ## What to quote
 
@@ -85,8 +85,8 @@ Each step is **English instructions + a handful of worked examples**.
    └─────────────────────────────────────────────────────────┘
                          │
                          ▼
-              5. EXPERIMENT = optimize + evaluate on frozen test.jsonl
-                 (--mini = skip optimize, exam only)
+              5. CARTOON EXAM = evaluate frozen test.jsonl
+                 (`experiment --mini`; full `experiment` also recompiles)
 ```
 
 ### 1. Scan (probe)
@@ -143,15 +143,15 @@ Do **not** compile on the 55 cartoons alone. Do **not** overwrite `claude-era.js
 ./tslit evaluate --use-compiled --test workspace/data/dev.jsonl
 ```
 
-### 5. Experiment
+### 5. Cartoon exam
 
-Research-loop wrapper:
+Hash-guarded homework on frozen `test.jsonl`. **Not Qwen.** There is no
+overnight Karpathy agent; see [PAPER.md](PAPER.md).
 
-- full: optimize, then evaluate on **frozen `test.jsonl`**
 - `--mini`: skip optimize; exam only
+- full: optimize, then exam (hours; write a named compile file in practice)
 
-Always prints `EXPERIMENT_RESULT: accuracy=…` (even on failure).  
-Hash-guards `test.jsonl` so nobody edits the exam.
+Always prints `EXPERIMENT_RESULT: accuracy=…` (even on failure).
 
 ## Cheat sheet
 
@@ -161,6 +161,5 @@ Hash-guards `test.jsonl` so nobody edits the exam.
 | Get a verdict on saved interviews | `scan --phase analyze` |
 | See if the detective still passes the **toy exam** | `evaluate` or `experiment --mini` (not Qwen) |
 | Teach the detective better English | `optimize` (compile named file, then promote) |
-| One scored cartoon research trial | `experiment` |
 
 **Compile = prompts for the detective. Scan = questions for the suspect.**

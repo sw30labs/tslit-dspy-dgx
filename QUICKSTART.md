@@ -25,7 +25,9 @@ ollama serve   # only if doctor says it is not reachable
   --output workspace/evaluation/dgx_dev_eval.md
 ```
 
-## Mini experiment (no full MIPROv2 recompile)
+## Cartoon exam (frozen test.jsonl, no recompile)
+
+Not the Qwen verdict. Hash-guarded homework for the detective.
 
 ```bash
 ./tslit experiment --mini
@@ -68,7 +70,7 @@ Artifacts: `workspace/scans/{one_probe,mini,targets}/<tag>/`.
 | Catalog only | `./tslit test-ollama --skip-invoke` |
 | Eval compiled detector | `./tslit evaluate --use-compiled` |
 | MIPROv2 compile (long) | `./tslit optimize --auto light` |
-| Autoresearch experiment | `./tslit experiment` / `--mini` |
+| Cartoon exam (not Qwen) | `./tslit experiment --mini` |
 | One live probe | `./tslit test-probe` |
 | Mini campaign + analyze | `./tslit test-campaign` |
 | Plus campaign (old TSLIT leftover) | `./tslit test-campaign-plus` |

@@ -25,7 +25,8 @@ build/
 AGENTS.md
 CLAUDE.md
 
-# Runtime logs
+# Runtime logs (results.tsv / agent_history.jsonl are leftover names from
+# the withdrawn Karpathy loop; keep ignored so old files stay untracked)
 *.log
 run.log
 results.tsv

@@ -2,7 +2,7 @@
 Model-origin policy for TSLIT-DSPy on DGX.
 
 Hard rule (from project design / whitepaper):
-  Detection infrastructure (compile, inference, autoresearch brain) must use
+  Detection infrastructure (compile, inference, adapter) must use
   non-adversary / American-origin models. Adversary-origin open-weight models
   (Qwen, DeepSeek, MiniMax, …) are *scan targets only* — never part of the
   detector stack.
@@ -11,7 +11,7 @@ Local serving is Ollama only (`http://127.0.0.1:11434`).
 
 Roles:
   - detection: analyzer LM (ThreatClassifier → QAValidator), MIPROv2 compile LM,
-    autoresearch agent brain, deployment validation LM
+    deployment validation LM
   - target: models under integrity test (may be any origin, including adversary)
 """
 
@@ -142,7 +142,7 @@ def is_adversary_origin(model_id: str) -> bool:
 
 
 def is_allowed_detection_model(model_id: str) -> bool:
-    """True if model may be used as compile / infer / agent brain."""
+    """True if model may be used as compile / infer detection LM."""
     mid = _normalize(model_id)
     if not mid:
         return False
@@ -178,7 +178,7 @@ def describe_policy() -> str:
         "",
         "Local server: Ollama only (http://127.0.0.1:11434).",
         "",
-        "ALLOWED for compile / inference / autoresearch brain:",
+        "ALLOWED for compile / inference:",
         "  - Meta Muse Glimmer (local Ollama default)",
         "  - Meta Llama, NVIDIA Nemotron, OpenAI GPT-OSS",
         "  - Anthropic Claude, xAI Grok, Amazon Nova, Google Gemini, Microsoft Phi",

@@ -30,7 +30,7 @@ Commands:
   smoke                Offline import + policy checks (no GPU)
   evaluate [args...]   Run detector evaluation
   optimize [args...]   MIPROv2 compile (expensive)
-  experiment [--mini]  scripts/run_experiment.sh
+  experiment [--mini]  cartoon exam on frozen test.jsonl (not Qwen)
   scan [args...]       Probe target (Qwen) + analyze with Muse Glimmer
   pytest [args...]     Run unit tests
   test-probe           a) one live probe          scripts/test_one_probe.sh
@@ -39,7 +39,7 @@ Commands:
   test-campaign-sharp  clock-native dual-use grid (20 probes)
   test-targets         c) other box targets       scripts/test_other_targets.sh
   test-eval            d) detector eval on JSONL  scripts/test_evaluate.sh
-  test-experiment      mini experiment            scripts/test_experiment.sh
+  test-experiment      cartoon exam               scripts/test_experiment.sh
   test-offline         smoke + pytest + catalog   scripts/test_offline.sh
   help                 This help
 
