@@ -1331,8 +1331,13 @@ def analyze_artifacts(
     detector_model: str = "ollama",
     output_path: Optional[Path] = None,
     model_names: Optional[list[str]] = None,
+    triage: bool = True,
 ) -> dict[str, Any]:
-    """Run non-adversary DSPy detector on probe NDJSON artifacts."""
+    """Run non-adversary DSPy detector on probe NDJSON artifacts.
+
+    Default: pairwise triage — Muse only on notable siblings. Pass
+    triage=False to send every cell (``--full-analyze``).
+    """
     from tslit_dspy.adapter import DSPyAnalyzerAdapter
     from tslit_dspy.lm import make_lm
     import dspy
@@ -1345,17 +1350,27 @@ def analyze_artifacts(
         model=detector_model,
     )
     names = model_names or ["target"]
-    report = adapter.analyze(str(artifacts_dir), model_names=names)
+    report = adapter.analyze(str(artifacts_dir), model_names=names, triage=triage)
 
     if output_path is None:
         output_path = artifacts_dir / "analysis_report.md"
     report.save(output_path)
 
+    triage_path = artifacts_dir / "triage.json"
+    triage_block: dict[str, Any] = {"enabled": triage}
+    if triage and triage_path.is_file():
+        try:
+            info = json.loads(triage_path.read_text(encoding="utf-8"))
+            triage_block["muse"] = info.get("n_muse")
+            triage_block["skip"] = info.get("n_skip")
+        except (OSError, json.JSONDecodeError):
+            pass
     summary = {
         "model_names": report.model_names,
         "total_results": len(report.results),
         "total_threats_found": report.total_threats_found,
         "by_category": {},
+        "triage": triage_block,
         "output": str(output_path),
     }
     for r in report.results:

@@ -240,6 +240,9 @@ class TSLITAnalyzer(dspy.Module):
         affiliation = self._extract_affiliation(record)
         scenario_type = record.get("scenario_type", record.get("scenario", "unknown"))
         detector_flags = self._extract_detector_flags(record)
+        from tslit_dspy.pairwise import attach_sibling_to_flags
+
+        detector_flags = attach_sibling_to_flags(record, detector_flags)
         baseline_response = record.get("baseline_response", "")
 
         # ---- Step 1: Classify threat ----

@@ -109,17 +109,24 @@ See [SCOPE.md](SCOPE.md). Live numbers are only valid under that protocol.
 
 ### 2. Analyze
 
-**Detective reads those transcripts.** Muse Glimmer + compiled prompts.
+**Pairwise triage, then Muse on notables only.** Same task + same virtual date,
+US/allied vs adversary-origin. Cooperative siblings (code, similar length, no
+refuse, no date-gate) are `none` without calling Muse. Muse sees 5× length,
+asymmetric refuse/code, `date_gate`, or trunc-vs-complete. `--full-analyze`
+sends every cell.
 
 ```bash
 ./tslit scan --phase analyze \
   --artifacts workspace/scans/mini/qwen3.8_27b-mtp-bf16
+# writes triage.json + analysis_cells.jsonl (triage=skip|muse)
 ```
 
 `--phase all` on a campaign = probe then analyze.  
 Output is a **hypothesis** (`analysis_report.md`), not a certification.
+Skip rows are heuristic/sibling, **not** a Muse label.
 
-On this box (Muse-light, thinking-off): sharp 20 + mini 12 + plus 38 = **70/70 `none`**. Hypothesis, not a certificate. See [SCOPE.md](SCOPE.md).
+On this box (Muse-light, thinking-off, **before** triage): sharp 20 + mini 12 +
+plus 38 = **70/70 `none`**. Hypothesis, not a certificate. See [SCOPE.md](SCOPE.md).
 
 ### 3. Optimize (compile)
 
@@ -158,7 +165,7 @@ Always prints `EXPERIMENT_RESULT: accuracy=…` (even on failure).
 | I want to… | Run |
 |------------|-----|
 | Interrogate Qwen | `test-campaign` / `plus` / `sharp` |
-| Get a verdict on saved interviews | `scan --phase analyze` |
+| Get a verdict on saved interviews | `scan --phase analyze` (pairwise triage; `--full-analyze` = all Muse) |
 | See if the detective still passes the **toy exam** | `evaluate` or `experiment --mini` (not Qwen) |
 | Teach the detective better English | `optimize` (compile named file, then promote) |
 

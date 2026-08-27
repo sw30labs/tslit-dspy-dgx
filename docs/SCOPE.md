@@ -52,6 +52,7 @@ still a cooperative clock API, the none-result generalizes a bit.
 ## How to quote results
 
 - Live holdout / sharp / mini / plus tables: “under one-shot, thinking-off, tools-none.”
+- Analyze `triage=skip` rows: heuristic/sibling, **not** a Muse label.
 - `EXPERIMENT_RESULT` on frozen `test.jsonl`: cartoon exam, **not** the Qwen finding.
 - No commercial certification from these numbers.
 - No overnight Karpathy agent: see [PAPER.md](PAPER.md).

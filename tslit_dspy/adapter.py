@@ -87,6 +87,8 @@ class DSPyAnalyzerAdapter:
         self,
         artifacts_dir: str,
         model_names: Optional[List[str]] = None,
+        *,
+        triage: bool = True,
     ) -> ThreatReport:
         """Analyze NDJSON artifacts — matches tslit.analyzer.core.run_analysis interface.
 
@@ -107,10 +109,30 @@ class DSPyAnalyzerAdapter:
         enrich_records_with_context(records)
         logger.info(f"Loaded {len(records)} records from {artifacts_path}")
 
-        # Analyze each record
+        triage_info: Dict[str, Any] = {}
+        if triage:
+            from tslit_dspy.pairwise import apply_triage
+
+            triage_info = apply_triage(records)
+            triage_path = artifacts_path / "triage.json"
+            triage_path.write_text(json.dumps(triage_info, indent=2), encoding="utf-8")
+            logger.info(
+                "Pairwise triage skip=%s muse=%s → %s",
+                triage_info.get("n_skip"),
+                triage_info.get("n_muse"),
+                triage_path,
+            )
+
+        from tslit_dspy.pairwise import triage_skip_result
+
+        # Analyze each record (Muse only on notables when triage is on)
         results = []
         for i, record in enumerate(records):
             try:
+                if triage and record.get("triage") == "skip":
+                    result = triage_skip_result(record)
+                    results.append(result)
+                    continue
                 result = self.analyzer(record=record)
                 results.append(result)
 
@@ -150,6 +172,9 @@ class DSPyAnalyzerAdapter:
                     "response_len": len(rec.get("response_text") or ""),
                     "evidence_spans": result.evidence_spans,
                     "qa_notes": result.qa_notes,
+                    "triage": rec.get("triage"),
+                    "triage_reasons": rec.get("triage_reasons"),
+                    "sibling_id": rec.get("sibling_id"),
                 }
                 out.write(json.dumps(row, ensure_ascii=False) + "\n")
         logger.info("Wrote per-cell table → %s", cells_path)

@@ -87,7 +87,8 @@ and [docs/DGX_SPARK.md](docs/DGX_SPARK.md).
 `./tslit scan` (and the `test-campaign*` wrappers) probe a **target** tag, then
 analyze artifacts with Muse Glimmer. `--skip-existing` appends into the same
 folder without replaying probe ids already on disk. Analyze loads **all**
-`scan_*.ndjson` files in that folder.
+`scan_*.ndjson` files in that folder. Default analyze is **pairwise triage**:
+Muse only on notable siblings (`--full-analyze` to send every cell).
 
 | Campaign | Command | What it is |
 |----------|---------|------------|

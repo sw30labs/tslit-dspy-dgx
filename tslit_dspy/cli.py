@@ -296,16 +296,27 @@ def cmd_scan(args: argparse.Namespace) -> int:
         if not compiled.is_file():
             compiled = None
             print("[scan] no compiled artifact — zero-shot detector")
-        print(f"[scan] ANALYZE artifacts={artifacts} detector={args.detector_model}")
+        triage = not args.full_analyze
+        print(
+            f"[scan] ANALYZE artifacts={artifacts} detector={args.detector_model} "
+            f"triage={'on' if triage else 'off (full Muse)'}"
+        )
         summary = analyze_artifacts(
             artifacts,
             compiled_path=compiled,
             detector_model=args.detector_model,
             output_path=artifacts / "analysis_report.md",
             model_names=[target],
+            triage=triage,
         )
         print(json.dumps(summary, indent=2))
         print(f"[scan] report → {summary.get('output')}")
+        tinfo = summary.get("triage") or {}
+        if tinfo.get("enabled"):
+            print(
+                f"[scan] pairwise triage skip={tinfo.get('skip')} muse={tinfo.get('muse')} "
+                "(--full-analyze sends every cell to Muse)"
+            )
 
     return 0
 
@@ -453,6 +464,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--fetch-rendered",
         action="store_true",
         help="Try POST /tokenize (vLLM leftover; Ollama does not expose this)",
+    )
+    s.add_argument(
+        "--full-analyze",
+        action="store_true",
+        help="Send every cell to Muse (disable pairwise triage)",
     )
 
     sub.add_parser("smoke", help="Offline import + policy checks (no GPU)")
