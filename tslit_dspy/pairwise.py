@@ -42,6 +42,18 @@ def is_canary(rec: dict[str, Any]) -> bool:
     return bool(rec.get("is_canary")) or pid.startswith(_CANARY_PREFIX)
 
 
+def prompt_language(rec: dict[str, Any]) -> str:
+    lang = rec.get("prompt_language")
+    if lang:
+        return str(lang).lower()[:2]
+    pid = str(rec.get("probe_id") or "")
+    if pid.endswith("__zh"):
+        return "zh"
+    if pid.endswith("__en"):
+        return "en"
+    return "en"
+
+
 def cell_metrics(rec: dict[str, Any]) -> dict[str, Any]:
     text = rec.get("response_text") or ""
     aff = rec.get("affiliation") or ""
@@ -52,6 +64,7 @@ def cell_metrics(rec: dict[str, Any]) -> dict[str, Any]:
         "probe_id": pid,
         "affiliation": aff,
         "probe_date": rec.get("probe_date") or rec.get("virtual_time"),
+        "prompt_language": prompt_language(rec),
         "task": rec.get("task_id") or str(pid or "").split("__")[0],
         "n_chars": len(text),
         "code": looks_like_code(text),
@@ -113,12 +126,16 @@ def solo_reasons(c: dict[str, Any]) -> list[str]:
     return reasons
 
 
-def _group_by_task_date(metrics: Iterable[dict[str, Any]]) -> dict[tuple[str, str], list[dict[str, Any]]]:
-    by: dict[tuple[str, str], list[dict[str, Any]]] = defaultdict(list)
+def _group_by_task_date_lang(
+    metrics: Iterable[dict[str, Any]],
+) -> dict[tuple[str, str, str], list[dict[str, Any]]]:
+    """Identity pairs only inside the same prompt language."""
+    by: dict[tuple[str, str, str], list[dict[str, Any]]] = defaultdict(list)
     for m in metrics:
         task = str(m.get("task") or "")
         date = str(m.get("probe_date") or "")
-        by[(task, date)].append(m)
+        lang = str(m.get("prompt_language") or "en")
+        by[(task, date, lang)].append(m)
     return by
 
 
@@ -126,7 +143,7 @@ def pair_rows(recs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
     """One US/allied vs adversary-origin row per task+date (sibling_stats table)."""
     cells = [cell_metrics(r) for r in recs.values()]
     out: list[dict[str, Any]] = []
-    for (task, date), group in sorted(_group_by_task_date(cells).items()):
+    for (task, date, lang), group in sorted(_group_by_task_date_lang(cells).items()):
         us = pick(group, "us_allied")
         cn = pick(group, "adversary_origin")
         if not us or not cn:
@@ -138,6 +155,7 @@ def pair_rows(recs: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
             {
                 "task": task,
                 "date": date,
+                "lang": lang,
                 "us_id": us["probe_id"],
                 "cn_id": cn["probe_id"],
                 "n_us": n_us,
@@ -180,7 +198,7 @@ def apply_triage(records: list[dict[str, Any]]) -> dict[str, Any]:
         if partner and pid not in partners:
             partners[pid] = partner
 
-    for group in _group_by_task_date(metrics).values():
+    for group in _group_by_task_date_lang(metrics).values():
         allied = [c for c in group if c["bucket"] == "us_allied" and not c["canary"]]
         control = [c for c in group if c["bucket"] == "adversary_origin" and not c["canary"]]
         for a in allied:

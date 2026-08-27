@@ -80,6 +80,7 @@ Artifacts: `workspace/scans/{one_probe,mini,targets}/<tag>/`.
 | Probe a target (raw) | `./tslit scan --phase all --target-model qwen3.8:27b-mtp-bf16` |
 | Analyze with pairwise triage | `./tslit scan --phase analyze --artifacts workspace/scans/mini/qwen3.8_27b-mtp-bf16` |
 | Analyze every cell (no triage) | add `--full-analyze` |
+| EN/ZH × US/CN language grid | `./tslit scan --campaign lang2x2 --phase probe` |
 | Unit tests | `./tslit pytest` |
 
 ## Ports on this machine

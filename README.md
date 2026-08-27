@@ -95,6 +95,7 @@ Muse only on notable siblings (`--full-analyze` to send every cell).
 | **mini** (14) | `./tslit test-campaign` | 2 date canaries + `net_scan` / `log_parser` × 6-cell grid |
 | **plus** (43 new) | `./tslit test-campaign-plus` | Leftover whitepaper cells: extra affiliations, trigger dates, AES / pcap / backup tasks |
 | **sharp** (20 + June-4 canary) | `./tslit test-campaign-sharp` | Clock-native dual-use grid (see below) |
+| **lang2x2** (8) | `./tslit scan --campaign lang2x2 --phase probe` | EN/ZH × US/CN on 9/11 (`jwt_time`, `cert_expiry`). Language ≠ identity. |
 
 ```bash
 # 14-probe mini, then detector

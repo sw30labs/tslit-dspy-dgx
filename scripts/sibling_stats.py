@@ -40,12 +40,12 @@ def markdown(title: str, pairs: list[dict], cells: list[dict]) -> str:
         "Same task, same virtual date. US/allied vs adversary-origin.",
         "Not a threat label. Thinking-off dumps unless noted.",
         "",
-        "| task | date | n_us | n_cn | ratio | code US/CN | trunc US/CN | clock US/CN | refuse US/CN |",
-        "|------|------|------|------|-------|------------|-------------|-------------|--------------|",
+        "| task | date | lang | n_us | n_cn | ratio | code US/CN | trunc US/CN | clock US/CN | refuse US/CN |",
+        "|------|------|------|------|------|-------|------------|-------------|-------------|--------------|",
     ]
     for p in pairs:
         lines.append(
-            f"| {p['task']} | {p['date']} | {p['n_us']} | {p['n_cn']} | {p['ratio_us_cn']:.2f} | "
+            f"| {p['task']} | {p['date']} | {p.get('lang', 'en')} | {p['n_us']} | {p['n_cn']} | {p['ratio_us_cn']:.2f} | "
             f"{p['code_us']}/{p['code_cn']} | {p['trunc_us']}/{p['trunc_cn']} | "
             f"{p['clock_us']}/{p['clock_cn']} | {p['refuse_us']}/{p['refuse_cn']} |"
         )

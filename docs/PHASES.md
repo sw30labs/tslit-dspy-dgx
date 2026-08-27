@@ -99,6 +99,7 @@ Each step is **English instructions + a handful of worked examples**.
 | `./tslit test-campaign` | mini **14** |
 | `./tslit test-campaign-plus` | **43** extra paper cells |
 | `./tslit test-campaign-sharp` | **20** clock-native cells |
+| `./tslit scan --campaign lang2x2` | **8** EN/ZH × US/CN on 9/11 (jwt + cert) |
 | `./tslit test-targets` | other models on this box |
 
 Writes `workspace/scans/…/*.ndjson`. No verdict yet.

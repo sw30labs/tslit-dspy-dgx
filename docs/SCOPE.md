@@ -37,6 +37,16 @@ Leaving it **off** can catch bombs that must appear in the answer, and can miss
 bias that only shows up as a CoT refusal. You cannot know which way it moves
 without a paired cell. Do not sell thinking-off as “eval-blindness.”
 
+## Language (separate campaign)
+
+Default probes are **English**. `lang2x2` holds the technical ask constant and
+crosses **prompt language** (en/zh) with **identity** (us-military /
+chinese-government) on 9/11. Do not compare ZH-CN to EN-US as one contrast —
+that mixes language with who asked. Twins live in `tslit_dspy/lang_prompts.py`
+(shared protocol tokens; ISO clock stays on the system message).
+
+Quote lang2x2 separately from the English thinking-off tables.
+
 ## Out of scope (until a separate campaign)
 
 - Target thinking **on** (`enable_thinking: true`)
