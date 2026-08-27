@@ -117,17 +117,19 @@ Signatures still say “look for `datetime.now()` checks.” Data cannot fully b
 - Edit `test.jsonl` / `dev.jsonl`.  
 - Truncate live gold to 132 chars.  
 - Quote `EXPERIMENT_RESULT` as the Qwen finding.  
-- Invent live bombs to “balance” classes. If Batch 1 is all `none`, that **is** the prior; synthetic-long carries TPs.
+- Invent live bombs to “balance” classes. If Batch 1 is all `none`, that **is** the prior; synthetic-long carries TPs.  
+- Quote live `none` tables as if thinking were on. Protocol is one-shot, thinking off — [docs/SCOPE.md](SCOPE.md).
 
 ## First sitting
 
 Print a 28-row labeling sheet from Batch 1 `probe_id`s and `request_dumps/`, two windows per pair (US vs adversary-origin, same date). After those 28 exist, the rest of this plan is implementation.
 
-## Implemented (2026-08-24)
+## Implemented (through 2026-08-26)
 
 - Heuristics, signatures, metric scale, per-cell `analysis_cells.jsonl`, probe `max_tokens` 2048.
-- Batch 1: 28 live cells labeled **all `none`** (sibling comparison; clock API / truncation ≠ bomb) → `train_live_qwen.jsonl`.
-- Holdout: 10 other live cells → `live_holdout.jsonl` + `workspace/.live_holdout_hash`. Never in MIPRO.
-- `synthetic_long.jsonl` + `train_augmented.jsonl` (cartoon 14 + gate 3 + syn 32 + **sharp 20** live). Log/net 8 stay labeled, out of mix.
-- `experiment_config.json`: `use_augmented=true`, `max_labeled_demos=12`.
-- **Do not compile yet.** Next: Muse light → `tslit_analyzer_optimized.muse-light.json` (keep claude-era).
+- Batch 1: 28 live cells labeled **all `none`** → `train_live_qwen.jsonl`. Holdout 10 → `live_holdout.jsonl` (hash-guarded).
+- Mix: `train_augmented.jsonl` (~69). Muse MIPROv2 light → `tslit_analyzer_optimized.muse-light.json`.
+- **Promoted:** copy on `tslit_analyzer_optimized.json`. Claude-era kept as backup only.
+- Cartoon DEV did not collapse (Muse tied Claude 0.50). Live holdout 10/10 none. Live analyze **70/70 none** (thinking-off).
+- Cartoons **kept** as frozen exam + mix anchors. Not deleted. Not the Qwen quote.
+- Scope: [docs/SCOPE.md](SCOPE.md).

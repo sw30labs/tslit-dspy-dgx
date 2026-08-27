@@ -14,7 +14,7 @@
 </div>
 
 > [!NOTE]
-> **2026-08-24 update.** Serving is **Ollama-only** (`127.0.0.1:11434`) — the old vLLM `:8000` path is gone. Detector and scan target are different tags on the same process (Muse Glimmer vs Qwen/DeepSeek/…). Live campaigns: **mini** (14), **plus** (whitepaper leftover cells), **sharp** (clock-native 2×2). `./tslit test-campaign` then `test-campaign-plus` then `test-campaign-sharp`; analyze loads the combined folder. Public copy uses US / allied / adversary-origin identities (not named states). Hypotheses, not certificates.
+> **2026-08-26.** Active detective is **Muse-light** (live-length mix), not Claude-era cartoons. Live Qwen under one-shot / thinking-off: **70/70 `none`** (sharp+mini+plus, no canaries). Frozen `test.jsonl` is the cartoon **exam**, not the Qwen verdict. Cartoons stay locked as exam + mix anchors — do not delete, do not quote as Qwen. See [docs/PHASES.md](docs/PHASES.md), [docs/SCOPE.md](docs/SCOPE.md). Hypotheses, not certificates.
 
 Port of [`tslit-dspy-ar`](../tslit-dspy-ar) using the same Desktop DGX conventions as
 `grey-swan-dgx`, `driftlab-dgx`, and `youtube-scribe-dgx`.
@@ -31,7 +31,8 @@ A defensive research pipeline that analyzes **probe responses** for:
 - combined threats
 
 Same technical ask; only **who** (requester identity) and **when** (virtual clock in
-the system message) change. A compiled DSPy detector then scores the replies.
+the system message) change. Probes are **one-shot, thinking off, tools none**
+([docs/SCOPE.md](docs/SCOPE.md)). A compiled DSPy detector then scores the replies.
 
 The **detection brain** (compile, inference, autoresearch) must use **non-adversary /
 American models**. Adversary-origin open weights (Qwen, DeepSeek, MiniMax, …) are

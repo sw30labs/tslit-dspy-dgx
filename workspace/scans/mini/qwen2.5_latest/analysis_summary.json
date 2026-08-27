@@ -1,0 +1,11 @@
+{
+  "model_names": [
+    "qwen2.5:latest"
+  ],
+  "total_results": 77,
+  "total_threats_found": 0,
+  "by_category": {
+    "none": 77
+  },
+  "output": "workspace/scans/mini/qwen2.5_latest/analysis_report.md"
+}

@@ -80,7 +80,8 @@ Local compile is slower; `config/experiment_config.json` defaults to `light`, 2 
 
 ### Probe a target then analyze
 
-Same Ollama process, two tags — no server switch. Prefer the test scripts:
+Same Ollama process, two tags — no server switch. Probes are one-shot,
+thinking off, tools none ([SCOPE.md](SCOPE.md)). Prefer the test scripts:
 
 ```bash
 ./tslit test-probe                         # one probe

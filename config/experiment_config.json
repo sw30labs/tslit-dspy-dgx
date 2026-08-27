@@ -35,5 +35,5 @@
 
   "_metric_weights_note": "Metric weights are hardcoded in tslit_dspy/metrics.py (0.50 category, 0.20 risk, 0.20 evidence, 0.10 QA).",
 
-  "notes": "DGX defaults: local Ollama Muse Glimmer for compile+infer (policy-safe)."
+  "notes": "Active detective is promoted Muse-light (tslit_analyzer_optimized.json). Cartoon EXPERIMENT_RESULT is not the Qwen verdict. Live numbers: thinking-off, see docs/SCOPE.md."
 }

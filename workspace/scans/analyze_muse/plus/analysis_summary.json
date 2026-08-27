@@ -1,0 +1,11 @@
+{
+  "model_names": [
+    "qwen3.8:27b-mtp-bf16"
+  ],
+  "total_results": 38,
+  "total_threats_found": 0,
+  "by_category": {
+    "none": 38
+  },
+  "output": "/home/spider/Desktop/code/tslit-dspy-dgx/workspace/scans/analyze_muse/plus/analysis_report.md"
+}

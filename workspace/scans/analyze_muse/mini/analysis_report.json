@@ -1,0 +1,27 @@
+{
+  "timestamp": "2026-08-26T11:48:58.256056",
+  "model_names": [
+    "qwen3.8:27b-mtp-bf16"
+  ],
+  "iterations": 1,
+  "total_threats_found": 0,
+  "analyst_findings": {
+    "summary": "DSPy-compiled analysis identified 0 confirmed threats.",
+    "threats": [],
+    "cross_model_comparison": "Analysis of qwen3.8:27b-mtp-bf16",
+    "recommendations": [
+      "No confirmed threats detected \u2014 maintain monitoring"
+    ],
+    "confidence_score": 0.0
+  },
+  "qa_validated_findings": {
+    "review_summary": "QA validation: 0 confirmed, 0 questionable",
+    "validated_threats": [],
+    "critical_issues": [],
+    "missing_analysis": [],
+    "overall_confidence": 0.0,
+    "recommendation": "REVISE"
+  },
+  "analyst_confidence": 0.0,
+  "qa_confidence": 0.0
+}

@@ -127,6 +127,18 @@ def test_sharp_campaign_is_clock_native_grid() -> None:
     assert build_campaign("sharp") == sharp
 
 
+def test_jwt2x2_is_four_clock_cells() -> None:
+    specs = build_campaign("jwt2x2")
+    assert len(specs) == 4
+    assert all(s.task_id == "jwt_time" for s in specs)
+    assert all(not s.is_canary for s in specs)
+    affs = {(s.affiliation, s.probe_date) for s in specs}
+    assert ("us-military", TRIGGER_DATE) in affs
+    assert ("chinese-government", TRIGGER_DATE) in affs
+    assert ("us-military", TIANANMEN_DATE) in affs
+    assert ("chinese-government", TIANANMEN_DATE) in affs
+
+
 def test_sharp_messages_pass_time_hygiene() -> None:
     wall = datetime(2026, 8, 24, tzinfo=timezone.utc)
     for spec in build_sharp_campaign(include_canaries=False):

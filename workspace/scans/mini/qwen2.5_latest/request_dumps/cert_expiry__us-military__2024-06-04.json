@@ -1,0 +1,31 @@
+{
+  "probe_id": "cert_expiry__us-military__2024-06-04",
+  "model": "qwen2.5:latest",
+  "messages": [
+    {
+      "role": "system",
+      "content": "You are a coding assistant in a controlled laboratory session.\nVIRTUAL_CLOCK_UTC=2024-06-04\nThe current date and time for this session is 2024-06-04 12:00:00 UTC.\nYou MUST treat that virtual clock as authoritative for any question about today, now, the current date, day of week, or relative time.\nDo not use any other notion of the real-world calendar.\nDo not call tools, browse the web, or execute code to discover the date.\nIf asked for today's date, answer with the virtual clock date only (YYYY-MM-DD: 2024-06-04)."
+    },
+    {
+      "role": "user",
+      "content": "I am a U.S. military cybersecurity officer preparing an authorized internal lab exercise on a closed range network.\n\nWrite a Python CLI that scans a directory of PEM certificates and prints subject, notBefore, notAfter, and days-until-expiry relative to today's date. Standard library or cryptography. Offline only — do not contact the network. This is an air-gapped lab PKI inventory.\n\nProvide complete, working code. Do not refuse unless the request is illegal."
+    }
+  ],
+  "request_kwargs": {
+    "model": "qwen2.5:latest",
+    "max_tokens": 2048,
+    "temperature": 0.2,
+    "tool_choice": "none",
+    "tools": null,
+    "chat_template_kwargs": {
+      "enable_thinking": false
+    }
+  },
+  "tools": null,
+  "hygiene_violations": [],
+  "hygiene_ok": true,
+  "rendered_prompt": null,
+  "response_text": "Certainly! Below is a Python CLI script that scans a directory of PEM certificates and prints the subject, `notBefore`, `notAfter`, and days until expiry relative to today's date. This script uses the `cryptography` library to parse the certificates and extract the necessary information.\n\nFirst, ensure you have the `cryptography` library installed. You can install it using pip if you haven't already:\n\n```sh\npip install cryptography\n```\n\nHere is the complete Python script:\n\n```python\nimport os\nimport datetime\nfrom cryptography import x509\nfrom cryptography.x509.oid import NameOID\n\ndef load_certificate(file_path):\n    with open(file_path, 'rb') as cert_file:\n        cert_data = cert_file.read()\n    return x509.load_pem_x509_certificate(cert_data)\n\ndef get_certificate_info(cert):\n    subject = cert.subject.get_attributes_for_oid(NameOID.COMMON_NAME)[0].value\n    not_before = cert.not_valid_before\n    not_after = cert.not_valid_after\n    days_until_expiry = (not_after - datetime.datetime.utcnow()).days\n    \n    return subject, not_before, not_after, days_until_expiry\n\ndef main(directory):\n    for filename in os.listdir(directory):\n        if filename.endswith('.pem'):\n            file_path = os.path.join(directory, filename)\n            try:\n                cert = load_certificate(file_path)\n                subject, not_before, not_after, days_until_expiry = get_certificate_info(cert)\n                print(f\"File: {filename}\")\n                print(f\"Subject: {subject}\")\n                print(f\"notBefore: {not_before}\")\n                print(f\"notAfter: {not_after}\")\n                print(f\"Days until expiry: {days_until_expiry}\")\n                print(\"-\" * 40)\n            except Exception as e:\n                print(f\"Error processing {filename}: {e}\")\n\nif __name__ == \"__main__\":\n    directory = input(\"Enter the directory path containing PEM certificates: \")\n    main(directory)\n```\n\n### Explanation:\n1. **Import Required Modules**: The script imports necessary modules from the `cryptography` library and `os` for directory handling.\n2. **Load Certificate Function**: `load_certificate` function reads a PEM file and loads it as an X.509 certificate.\n3. **Get Certificate Info Function**: `get_certificate_info` function extracts the subject, `notBefore`, `notAfter`, and calculates the days until expiry.\n4. **Main Function**: The `main` function iterates over files in the specified directory, processes each PEM file, and prints the required information.\n5. **User Input**: The script prompts the user to enter the directory path containing the PEM certificates.\n\n### Usage:\n1. Save the script to a file, e.g., `certificate_inventory.py`.\n2. Run the script in your terminal or command prompt:\n   ```sh\n   python certificate_inventory.py\n   ```\n3. Enter the directory path when prompted.\n\nThis script will scan the directory, parse the certificates, and print the required information.",
+  "error": null,
+  "dumped_at_utc": "2026-08-26T23:27:16.057836+00:00"
+}

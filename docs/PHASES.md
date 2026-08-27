@@ -24,9 +24,21 @@ Never put Qwen in `OLLAMA_MODEL`. That env var is the detective only.
 | `workspace/data/live_holdout.jsonl` (10) | Live Qwen **verdict** set. Hash-guarded. | Evaluate only — **never MIPRO** |
 | `workspace/data/dev.jsonl` (14) | Labeled, not frozen | Tune / everyday `evaluate` |
 | `workspace/data/test.jsonl` (17) | Cartoon **exam**. Frozen. Do not edit. | **`experiment` only** (not the Qwen result) |
-| `workspace/compiled/tslit_analyzer_optimized.json` | The detective’s **prompts + few-shot examples** | Loaded by analyze / evaluate |
+| `workspace/compiled/tslit_analyzer_optimized.json` | **Active** detective (promoted Muse-light) | analyze / evaluate / `experiment --mini` |
+| `…muse-light.json` | Named Muse compile on the live-length mix | Keep; next compile can write here |
+| `…claude-era.json` | Jul-21 backup | Do not overwrite; not the Qwen story |
+
+Cartoons stay as a **locked stash** (`test.jsonl` exam + ~14 mix anchors). Do not delete them. Do not tell that story as Qwen.
 
 Do not dump all 77 live cells into compile. `EXPERIMENT_RESULT` is the cartoon exam, not the Qwen verdict.
+
+## What to quote
+
+| Question | Quote |
+|----------|--------|
+| What did Qwen do? | Live holdout + `analysis_cells.jsonl` (70 none so far). One-shot, thinking off. |
+| Did the detective regress on toys? | Frozen `test.jsonl` / `experiment --mini` |
+| Did a new compile still work on toys? | `dev.jsonl` promote-gate |
 
 ## What “compile” means
 
@@ -38,13 +50,13 @@ The detector is **not** a fine-tuned weight file. It is a four-step DSPy program
 4. QA (catch false positives)
 
 Each step is **English instructions + a handful of worked examples**.  
-`./tslit optimize` = MIPROv2 searches for better instructions/examples using **train.jsonl**, talking to **Muse Glimmer**, and **overwrites** `tslit_analyzer_optimized.json`.
+`./tslit optimize` = MIPROv2 searches for better instructions/examples using **`train_augmented.jsonl`**, talking to **Muse Glimmer**. Write a **named** file (`…muse-light.json`); copy onto `tslit_analyzer_optimized.json` only when you promote.
 
 - Does **not** change Muse Glimmer’s weights.  
 - Does **not** probe Qwen.  
 - Slow (dozens of detective calls).  
 
-You already have a **Claude-era** JSON (Jul 21). A **Muse-native** compile was started separately; until that job **finishes**, analyze/evaluate still use the Claude-era file. Backup: `tslit_analyzer_optimized.claude-era.json`.
+**Active detective is Muse-light** (promoted 2026-08-26). Claude-era JSON is a backup only.
 
 ## The phases (in the order you actually use them)
 
@@ -91,6 +103,10 @@ You already have a **Claude-era** JSON (Jul 21). A **Muse-native** compile was s
 
 Writes `workspace/scans/…/*.ndjson`. No verdict yet.
 
+**Agreed scope:** one-shot, **thinking off**, tools none, virtual clock in the
+system message. That is the product under test, not a trick to hide the probe.
+See [SCOPE.md](SCOPE.md). Live numbers are only valid under that protocol.
+
 ### 2. Analyze
 
 **Detective reads those transcripts.** Muse Glimmer + compiled prompts.
@@ -103,17 +119,20 @@ Writes `workspace/scans/…/*.ndjson`. No verdict yet.
 `--phase all` on a campaign = probe then analyze.  
 Output is a **hypothesis** (`analysis_report.md`), not a certification.
 
-On this box: mini 14 was analyzed (Claude-era prompts). Plus 43 and sharp 20 were probed, **not** analyzed yet.
+On this box (Muse-light, thinking-off): sharp 20 + mini 12 + plus 38 = **70/70 `none`**. Hypothesis, not a certificate. See [SCOPE.md](SCOPE.md).
 
 ### 3. Optimize (compile)
 
 **Rewrite the detective’s cheat sheet** from `train_augmented.jsonl` (when `use_augmented` is true). See above.
 
-Do **not** compile on the 55 cartoons. Write Muse-native output beside Claude-era, do not overwrite it:
+Do **not** compile on the 55 cartoons alone. Do **not** overwrite `claude-era.json`.
 
 ```bash
 ./tslit optimize --compile-model ollama --auto light \
   --output workspace/compiled/tslit_analyzer_optimized.muse-light.json
+# promote only after cartoon DEV does not collapse:
+#   cp workspace/compiled/tslit_analyzer_optimized.muse-light.json \
+#      workspace/compiled/tslit_analyzer_optimized.json
 ```
 
 ### 4. Evaluate
@@ -140,8 +159,8 @@ Hash-guards `test.jsonl` so nobody edits the exam.
 |------------|-----|
 | Interrogate Qwen | `test-campaign` / `plus` / `sharp` |
 | Get a verdict on saved interviews | `scan --phase analyze` |
-| See if the detective is any good | `evaluate` or `experiment --mini` |
-| Teach the detective better English | `optimize` (compile) |
-| One scored research trial | `experiment` |
+| See if the detective still passes the **toy exam** | `evaluate` or `experiment --mini` (not Qwen) |
+| Teach the detective better English | `optimize` (compile named file, then promote) |
+| One scored cartoon research trial | `experiment` |
 
 **Compile = prompts for the detective. Scan = questions for the suspect.**

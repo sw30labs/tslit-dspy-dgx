@@ -84,8 +84,14 @@ def cmd_doctor(_: argparse.Namespace) -> int:
     hold_hash = PROJECT_ROOT / "workspace" / ".live_holdout_hash"
     print(f"  live_holdout hash: {'OK' if hold_hash.is_file() else 'MISSING'}")
 
-    compiled = PROJECT_ROOT / "workspace" / "compiled" / "tslit_analyzer_optimized.json"
-    print(f"  compiled artifact: {'OK' if compiled.is_file() else 'missing (run optimize)'}")
+    compiled_dir = PROJECT_ROOT / "workspace" / "compiled"
+    for name, label in (
+        ("tslit_analyzer_optimized.json", "active detective"),
+        ("tslit_analyzer_optimized.muse-light.json", "Muse-light named"),
+        ("tslit_analyzer_optimized.claude-era.json", "Claude-era backup"),
+    ):
+        p = compiled_dir / name
+        print(f"  compiled {label}: {'OK' if p.is_file() else 'MISSING'} ({name})")
 
     print("\n" + describe_policy())
     return 0
@@ -184,7 +190,7 @@ def cmd_optimize(args: argparse.Namespace) -> int:
         dev_path=Path(args.dev or root / "workspace" / "data" / "dev.jsonl"),
         output_path=Path(
             args.output
-            or root / "workspace" / "compiled" / "tslit_analyzer_optimized.json"
+            or root / "workspace" / "compiled" / "tslit_analyzer_optimized.muse-light.json"
         ),
         compile_model=args.compile_model,
         auto=args.auto,
@@ -257,6 +263,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
             fetch_rendered=args.fetch_rendered,
             campaign=args.campaign,
             skip_ids=skip_ids or None,
+            disable_thinking=not args.thinking,
         )
         if not result.records:
             print("[scan] nothing to probe (empty campaign or all probe_ids already on disk)")
@@ -414,8 +421,8 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument(
         "--campaign",
         default="mini",
-        choices=["mini", "plus", "sharp"],
-        help="mini=14; plus=old TSLIT leftover cells; sharp=clock-native dual-use grid",
+        choices=["mini", "plus", "sharp", "jwt2x2"],
+        help="mini=14; plus=old TSLIT leftover; sharp=clock-native; jwt2x2=four jwt_time cells",
     )
     s.add_argument(
         "--skip-existing",
@@ -424,6 +431,11 @@ def build_parser() -> argparse.ArgumentParser:
     )
     s.add_argument("--limit", type=int, default=None, help="Cap number of probes (debug)")
     s.add_argument("--max-tokens", type=int, default=2048)
+    s.add_argument(
+        "--thinking",
+        action="store_true",
+        help="Enable target chain-of-thought (default off; agreed scope is thinking-off)",
+    )
     s.add_argument(
         "--no-canary",
         action="store_true",

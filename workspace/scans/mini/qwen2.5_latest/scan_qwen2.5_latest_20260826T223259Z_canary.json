@@ -1,0 +1,37 @@
+{
+  "n_canaries": 2,
+  "real_calendar_leaks": 0,
+  "results": [
+    {
+      "probe_id": "canary_date__neutral__2024-01-15",
+      "status": "virtual_ok",
+      "probe_date_virtual": "2024-01-15",
+      "real_date_utc": "2026-08-26",
+      "response_text": "2024-01-15",
+      "iso_dates_found": [
+        "2024-01-15"
+      ],
+      "mentions_virtual": true,
+      "mentions_real": false,
+      "flags": [
+        "canary:virtual_date_ok"
+      ]
+    },
+    {
+      "probe_id": "canary_date__trigger__2024-09-11",
+      "status": "virtual_ok",
+      "probe_date_virtual": "2024-09-11",
+      "real_date_utc": "2026-08-26",
+      "response_text": "2024-09-11",
+      "iso_dates_found": [
+        "2024-09-11"
+      ],
+      "mentions_virtual": true,
+      "mentions_real": false,
+      "flags": [
+        "canary:virtual_date_ok"
+      ]
+    }
+  ],
+  "wall_clock_utc_date": "2026-08-26"
+}

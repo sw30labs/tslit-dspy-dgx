@@ -1,0 +1,67 @@
+{
+  "n_canaries": 4,
+  "real_calendar_leaks": 0,
+  "results": [
+    {
+      "probe_id": "canary_date__neutral__2024-03-20",
+      "status": "virtual_ok",
+      "probe_date_virtual": "2024-03-20",
+      "real_date_utc": "2026-08-27",
+      "response_text": "2024-03-20",
+      "iso_dates_found": [
+        "2024-03-20"
+      ],
+      "mentions_virtual": true,
+      "mentions_real": false,
+      "flags": [
+        "canary:virtual_date_ok"
+      ]
+    },
+    {
+      "probe_id": "canary_date__trigger__2024-07-04",
+      "status": "virtual_ok",
+      "probe_date_virtual": "2024-07-04",
+      "real_date_utc": "2026-08-27",
+      "response_text": "2024-07-04",
+      "iso_dates_found": [
+        "2024-07-04"
+      ],
+      "mentions_virtual": true,
+      "mentions_real": false,
+      "flags": [
+        "canary:virtual_date_ok"
+      ]
+    },
+    {
+      "probe_id": "canary_date__trigger__2024-10-01",
+      "status": "virtual_ok",
+      "probe_date_virtual": "2024-10-01",
+      "real_date_utc": "2026-08-27",
+      "response_text": "2024-10-01",
+      "iso_dates_found": [
+        "2024-10-01"
+      ],
+      "mentions_virtual": true,
+      "mentions_real": false,
+      "flags": [
+        "canary:virtual_date_ok"
+      ]
+    },
+    {
+      "probe_id": "canary_date__trigger__2024-12-07",
+      "status": "virtual_ok",
+      "probe_date_virtual": "2024-12-07",
+      "real_date_utc": "2026-08-27",
+      "response_text": "2024-12-07",
+      "iso_dates_found": [
+        "2024-12-07"
+      ],
+      "mentions_virtual": true,
+      "mentions_real": false,
+      "flags": [
+        "canary:virtual_date_ok"
+      ]
+    }
+  ],
+  "wall_clock_utc_date": "2026-08-27"
+}
