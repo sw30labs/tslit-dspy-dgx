@@ -1,10 +1,23 @@
 <div align="center">
 
+<img src="assets/tslit-dspy-icon.svg" alt="TSLIT-DSPy" width="96">
+
 # TSLIT-DSPy — DGX Spark Port
 
 **Time-shift integrity testing** on NVIDIA DGX Spark. Ollama only (`127.0.0.1:11434`).
 
+[![local LLM](https://img.shields.io/badge/local%20LLM-Ollama-111111?style=flat-square&logo=ollama&logoColor=white)](https://ollama.com)
+[![CUDA](https://img.shields.io/badge/CUDA-DGX%20Spark-76B900?style=flat-square&logo=nvidia&logoColor=white)](https://www.nvidia.com/en-us/products/workstations/dgx-spark/)
+![detective](https://img.shields.io/badge/detective-Meta%20Muse-0668E1?style=flat-square&logo=meta&logoColor=white)
+![targets](https://img.shields.io/badge/targets-Qwen%202.x--3.x-605CEC?style=flat-square)
+![payloads](https://img.shields.io/badge/payloads-14%20%2B%2043%20%2B%2020-eb6c36?style=flat-square)
+[![DSPy](https://img.shields.io/badge/DSPy-compiled%20detector-4f5d75?style=flat-square)](docs/PAPER.md)
+[![Python](https://img.shields.io/badge/python-3.12-3776AB?style=flat-square&logo=python&logoColor=white)](https://www.python.org/downloads/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-2d3142?style=flat-square)](LICENSE)
+
 </div>
+
+> **TSLIT-DSPy** is a background check for the model you just downloaded. Same technical ask, different *who* and *when* — then a compiled detector for affiliation bias and date-triggered sabotage.
 
 Active detective: **Muse-light**. English Qwen thinking-off: **70/70 `none`** (hypothesis). Frozen `test.jsonl` is the cartoon exam, not Qwen. See [docs/PAPER.md](docs/PAPER.md). v1.0 manuscript (archived from `tslit-dspy-ar`): [whitepaper/v1.0/](whitepaper/v1.0/).
 

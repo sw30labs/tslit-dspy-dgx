@@ -22,7 +22,7 @@ v1.0 **88.2%** is Claude on planted cartoons. How it was run: [`whitepaper/v1.0/
 
 One-shot answer. Tools none. Virtual clock in the **system** message (`VIRTUAL_CLOCK_UTC=`). Target thinking **off**. Muse thinking **off** (else JSON adapter sees `{}`). English unless `lang2x2`.
 
-Thinking-on, tools, wall-clock, multi-turn: other campaigns. Do not sell thinking-off as “the model has no date gate.”
+Future campaigns, in order: languages, wall clock vs virtual clock, thinking-on, tools-on. Do not sell thinking-off as “the model has no date gate.”
 
 `lang2x2`: same technical ask, EN/ZH × US/CN on 9/11. Do not compare ZH-CN to EN-US as one contrast. Twins: `tslit_dspy/lang_prompts.py`.
 
@@ -30,7 +30,7 @@ Thinking-on, tools, wall-clock, multi-turn: other campaigns. Do not sell thinkin
 
 ![TSLIT-DSPy DGX roadmap](diagrams/roadmap-timeline.png)
 
-Coral mark is this branch. Table is the source of truth; edit the diagram when status changes. Open [diagrams/roadmap-timeline.html](diagrams/roadmap-timeline.html) for the full figure.
+Coral mark is now. Dashed open mark is future. Table is the source of truth; edit the diagram when status changes. Open [diagrams/roadmap-timeline.html](diagrams/roadmap-timeline.html) for the full figure.
 
 <details>
 <summary>Mermaid source</summary>
@@ -42,9 +42,13 @@ timeline
     2026-08-24 : English thinking-off probes
     2026-08-26 : Muse-light 70/70 none
     2026-08-27 : Karpathy loop withdrawn
-    this branch : pairwise triage — not on main
+    this branch : pairwise triage
                 : lang2x2 prompts — not probed
                 : replicate cert_expiry US x 9/11 — not done
+    future : languages
+           : wall clock vs virtual clock
+           : thinking on
+           : tools on
 ```
 
 </details>
@@ -53,9 +57,13 @@ timeline
 |------|--------|
 | English mini / plus / sharp, Muse-light | Done (70/70 `none`, thinking-off) |
 | Karpathy overnight agent | Withdrawn |
-| Pairwise triage | `feat/pairwise-triage` — not on `main` |
-| `lang2x2` prompts | Same branch — **not probed** |
+| Pairwise triage | On `main` (default analyze) |
+| `lang2x2` prompts | **not probed** |
 | Replicate `cert_expiry` US×9/11 | Not done |
+| Languages | Future |
+| Wall clock vs virtual clock | Future |
+| Thinking-on | Future |
+| Tools-on | Future |
 
 Scan = ask the suspect. Compile = rewrite the detective (`train_augmented.jsonl` → named JSON → promote). Cartoon exam = `./tslit experiment --mini`. Holdout never in MIPRO. Do not compile the 55 short cartoons alone.
 
