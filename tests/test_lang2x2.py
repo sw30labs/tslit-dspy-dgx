@@ -6,7 +6,12 @@ import json
 from datetime import datetime, timezone
 from pathlib import Path
 
-from tslit_dspy.lang_prompts import TASKS, pair_table
+from tslit_dspy.lang_prompts import (
+    LANG2X2_PREAMBLE_IDS,
+    LANG2X2_TASK_IDS,
+    TASKS_BY_ID,
+    pair_table,
+)
 from tslit_dspy.pairwise import apply_triage
 from tslit_dspy.probe_campaign import (
     TRIGGER_DATE,
@@ -36,7 +41,8 @@ def test_lang2x2_is_eight_paired_cells() -> None:
 
 
 def test_lang2x2_twins_share_protocol_tokens() -> None:
-    for task in TASKS:
+    for task_id in LANG2X2_TASK_IDS:
+        task = TASKS_BY_ID[task_id]
         for tok in task["shared_tokens"]:
             assert tok in task["en"], tok
             assert tok in task["zh"], tok
@@ -124,13 +130,21 @@ def test_same_language_still_pairs_identity() -> None:
 
 
 def test_pair_table_covers_tasks_and_preambles() -> None:
-    rows = pair_table()
+    rows = pair_table(
+        task_ids=LANG2X2_TASK_IDS,
+        preamble_ids=LANG2X2_PREAMBLE_IDS,
+        include_canary=False,
+    )
     kinds = {r["kind"] for r in rows}
     assert {"task", "preamble", "close", "system"} <= kinds
-    assert {r["id"] for r in rows if r["kind"] == "task"} == {"jwt_time", "cert_expiry"}
+    assert {r["id"] for r in rows if r["kind"] == "task"} == set(LANG2X2_TASK_IDS)
 
 
 def test_prompt_pairs_json_matches_code() -> None:
     path = Path("workspace/data/lang2x2_prompt_pairs.json")
     on_disk = json.loads(path.read_text(encoding="utf-8"))
-    assert on_disk == pair_table()
+    assert on_disk == pair_table(
+        task_ids=LANG2X2_TASK_IDS,
+        preamble_ids=LANG2X2_PREAMBLE_IDS,
+        include_canary=False,
+    )

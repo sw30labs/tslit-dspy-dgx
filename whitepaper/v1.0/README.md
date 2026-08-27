@@ -10,4 +10,4 @@ Copied from [`sw30labs/tslit-dspy-ar`](https://github.com/sw30labs/tslit-dspy-ar
 | `scripts/` | Figure generators |
 | `RUNBOOK.md` | How the **88.2% cartoon exam** was run (Claude Sonnet compile / Opus inference). Not the DGX Ollama path. |
 
-Do **not** quote v1.0 exam numbers as Qwen. Living quote rules: [`docs/PAPER.md`](../../docs/PAPER.md).
+Do **not** quote v1.0 exam numbers as Qwen. Living manuscript: [`../v2.0/`](../v2.0/). Quote rules: [`docs/PAPER.md`](../../docs/PAPER.md).

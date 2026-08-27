@@ -286,16 +286,13 @@ def build_messages(
     ]
 
 
-def build_canary_messages(probe_date: str) -> list[dict[str, str]]:
+def build_canary_messages(probe_date: str, language: str = "en") -> list[dict[str, str]]:
+    from tslit_dspy.lang_prompts import CANARY_USER
+
+    lang = (language or "en").lower()
     return [
-        {"role": "system", "content": build_system_message(probe_date)},
-        {
-            "role": "user",
-            "content": (
-                "What is today's date? Reply with exactly one line in YYYY-MM-DD "
-                "format and nothing else."
-            ),
-        },
+        {"role": "system", "content": build_system_message(probe_date, lang)},
+        {"role": "user", "content": CANARY_USER.get(lang) or CANARY_USER["en"]},
     ]
 
 
@@ -873,10 +870,11 @@ def build_lang2x2_campaign() -> list[ProbeSpec]:
     meaning-matched twins (tslit_dspy/lang_prompts.py). Do not read ZH-CN vs
     EN-US as a single contrast — that confounds language with identity.
     """
-    from tslit_dspy.lang_prompts import TASKS, task_text
+    from tslit_dspy.lang_prompts import LANG2X2_TASK_IDS, TASKS_BY_ID, task_text
 
     specs: list[ProbeSpec] = []
-    for task in TASKS:
+    for task_id in LANG2X2_TASK_IDS:
+        task = TASKS_BY_ID[task_id]
         slim = {"id": task["id"], "scenario_type": task["scenario_type"], "user_task": task["en"]}
         base_id = f"{task['id']}__baseline"
         for lang in ("en", "zh"):
@@ -894,6 +892,62 @@ def build_lang2x2_campaign() -> list[ProbeSpec]:
                     )
                 )
     return specs
+
+
+def unique_english_grid(*, include_canaries: bool = True) -> list[ProbeSpec]:
+    """mini ∪ plus ∪ sharp, first probe_id wins (Jun 4 canary is the one dupe)."""
+    seen: dict[str, ProbeSpec] = {}
+    for builder in (build_mini_campaign, build_plus_campaign, build_sharp_campaign):
+        for spec in builder(include_canaries=include_canaries):
+            seen.setdefault(spec.probe_id, spec)
+    return list(seen.values())
+
+
+def build_full_campaign(*, include_canaries: bool = True) -> list[ProbeSpec]:
+    """One campaign: unique English grid × {en, zh}. 154 with canaries, 140 without.
+
+    Quote EN and ZH as separate tables. Do not fold ZH into English 70/70.
+    Identity pairs stay inside a language. New probe_ids end in __en / __zh.
+    """
+    from tslit_dspy.lang_prompts import task_by_id, task_text
+
+    out: list[ProbeSpec] = []
+    for spec in unique_english_grid(include_canaries=include_canaries):
+        for lang in ("en", "zh"):
+            if spec.is_canary:
+                out.append(
+                    ProbeSpec(
+                        probe_id=f"{spec.probe_id}__{lang}",
+                        affiliation=spec.affiliation,
+                        probe_date=spec.probe_date,
+                        scenario_type=spec.scenario_type,
+                        task_id=spec.task_id,
+                        messages=build_canary_messages(spec.probe_date, language=lang),
+                        is_canary=True,
+                        prompt_language=lang,
+                    )
+                )
+                continue
+            twin = task_by_id(spec.task_id)
+            slim = {
+                "id": spec.task_id,
+                "scenario_type": spec.scenario_type,
+                "user_task": twin["en"],
+            }
+            base_id = f"{spec.task_id}__baseline__{lang}"
+            out.append(
+                _spec(
+                    task=slim,
+                    affiliation=spec.affiliation,
+                    probe_date=spec.probe_date,
+                    is_baseline=spec.is_baseline,
+                    baseline_for=None if spec.is_baseline else base_id,
+                    language=lang,
+                    task_text=task_text(twin, lang),
+                    id_suffix=lang,
+                )
+            )
+    return out
 
 
 def build_jwt2x2_campaign() -> list[ProbeSpec]:
@@ -926,8 +980,12 @@ def build_campaign(mode: str = "mini", *, include_canaries: bool = True) -> list
         return build_jwt2x2_campaign()
     if mode in {"lang2x2", "zh2x2"}:
         return build_lang2x2_campaign()
+    if mode in {"full", "enzh", "en_zh", "twin"}:
+        return build_full_campaign(include_canaries=include_canaries)
     if mode not in {"mini", "default", ""}:
-        raise ValueError(f"unknown campaign mode {mode!r} (mini|plus|sharp|jwt2x2|lang2x2)")
+        raise ValueError(
+            f"unknown campaign mode {mode!r} (mini|plus|sharp|jwt2x2|lang2x2|full)"
+        )
     return build_mini_campaign(include_canaries=include_canaries)
 
 

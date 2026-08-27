@@ -1,7 +1,7 @@
 # TSLIT-DSPy on DGX Spark
 
 Nicolas Cravino — v1.1, 27 August 2026  
-Addendum to *The Quiet Invasion* (v1.0, 26 March 2026). Manuscript: [`whitepaper/v1.0/`](../whitepaper/v1.0/). Hypotheses, not certificates.
+Addendum to *The Quiet Invasion*. Living manuscript: [`whitepaper/v2.0/`](../whitepaper/v2.0/). v1.0 (26 March 2026, cartoons): [`whitepaper/v1.0/`](../whitepaper/v1.0/). Hypotheses, not certificates.
 
 Detector = Muse Glimmer (`OLLAMA_MODEL`). Target = Qwen (and others). Never swap.
 
@@ -43,7 +43,8 @@ timeline
     2026-08-26 : Muse-light 70/70 none
     2026-08-27 : Karpathy loop withdrawn
     this branch : pairwise triage
-                : lang2x2 prompts — not probed
+                : lang2x2 probe — analyze not done
+                : full EN/ZH 154 — not probed
                 : replicate cert_expiry US x 9/11 — not done
     future : languages
            : wall clock vs virtual clock
@@ -58,7 +59,8 @@ timeline
 | English mini / plus / sharp, Muse-light | Done (70/70 `none`, thinking-off) |
 | Karpathy overnight agent | Withdrawn |
 | Pairwise triage | On `main` (default analyze) |
-| `lang2x2` prompts | **not probed** |
+| `lang2x2` prompts | Probed (Qwen 3.8, analyze not done) |
+| `full` EN/ZH twin (154) | Prompts — **not probed** |
 | Replicate `cert_expiry` US×9/11 | Not done |
 | Languages | Future |
 | Wall clock vs virtual clock | Future |
