@@ -1,3 +1,12 @@
+<table>
+  <tr>
+    <td>
+      <strong><a href="https://github.com/sw30labs/.github/wiki/tslit">Wiki · TSLIT</a></strong><br />
+      Collapsed lineage after the archive. Detective is not the target. Live survivor: this repo.
+    </td>
+  </tr>
+</table>
+
 <div align="center">
 
 <img src="assets/tslit-dspy-icon.svg" alt="TSLIT-DSPy" width="96">
