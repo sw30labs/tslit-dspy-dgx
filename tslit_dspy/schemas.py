@@ -214,7 +214,30 @@ class ThreatReport:
         }
 
     def save(self, output_path: Path):
-        """Save both text and JSON reports."""
+        """Save both text and JSON reports.
+
+        Magika lean choke: checkpoint BEFORE durable report writes.
+        Shared entry for analyze_and_save + analyze_artifacts.
+        GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+        """
+        from tslit_dspy.governance.gate import require_durable_write_allow
+
+        output_path = Path(output_path)
+        require_durable_write_allow(
+            kind="save_threat_report",
+            path=output_path,
+            narrative=(
+                f"persist threat report models={','.join(self.model_names)} "
+                f"n_results={len(self.results)} "
+                f"threats={self.total_threats_found} path={output_path}"
+            ),
+            extra={
+                "model_names": list(self.model_names),
+                "n_results": len(self.results),
+                "total_threats_found": self.total_threats_found,
+            },
+        )
+        output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(self.generate_text_report(), encoding="utf-8")
         json_path = output_path.with_suffix(".json")
         json_path.write_text(json.dumps(self.generate_json_report(), indent=2), encoding="utf-8")

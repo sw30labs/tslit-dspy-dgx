@@ -65,7 +65,10 @@ Pointer: full candidate list lives in [magika-decision-points.md](magika-decisio
 
 ## Where it runs
 
-Inside `save_campaign` only (lean v0). Not inside DSPy `forward()`.
+Lean v0 chokes (same helper, no DSPy `forward()`):
+
+1. `save_campaign` — probe NDJSON/meta/canary
+2. `ThreatReport.save` — report md+json (`analyze_and_save` / `analyze_artifacts`)
 
 ## Env
 

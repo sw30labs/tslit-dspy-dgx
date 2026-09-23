@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock smoke: allow vs stop at save_campaign durable-write choke (no API key)."""
+"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save chokes (no API key)."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ sys.path.insert(0, str(ROOT))
 
 from tslit_dspy.governance.gate import GovernanceBlocked, require_durable_write_allow  # noqa: E402
 from tslit_dspy.probe_campaign import CampaignResult, save_campaign  # noqa: E402
+from tslit_dspy.schemas import ThreatReport  # noqa: E402
 
 
 def _result() -> CampaignResult:
@@ -71,5 +72,34 @@ with mock.patch.dict(os.environ, {"GOVERNANCE_CHECKPOINT": "0"}):
     assert out.get("bypassed") is True
     rc.assert_not_called()
     print("DISABLED: bypass ok")
+
+
+# 4) ThreatReport.save allow → md+json land
+with tempfile.TemporaryDirectory() as td:
+    out = Path(td) / "analysis_report.md"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "allow", "detail": "ok"},
+    ):
+        ThreatReport(model_names=["mock-model"], results=[]).save(out)
+    assert out.is_file(), out
+    assert out.with_suffix(".json").is_file(), "json missing"
+    print("REPORT ALLOW: wrote", out.name)
+
+# 5) ThreatReport.save stop → no durable files
+with tempfile.TemporaryDirectory() as td:
+    out = Path(td) / "analysis_report.md"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "stop", "detail": "safety-CON-S32-01"},
+    ):
+        try:
+            ThreatReport(model_names=["mock-model"], results=[]).save(out)
+            raise SystemExit("expected GovernanceBlocked on report save")
+        except GovernanceBlocked as e:
+            assert e.action == "stop", e
+            print("REPORT BLOCK:", e)
+    leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+    assert not leftovers, leftovers
 
 print("smoke_durable_write_gate: OK")
