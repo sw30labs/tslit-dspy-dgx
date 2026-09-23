@@ -213,16 +213,69 @@ class ThreatReport:
             "qa_confidence": self.to_qa_review()["overall_confidence"],
         }
 
+    def stash_artifact_sidecars(
+        self,
+        *,
+        artifacts_dir: Path | str,
+        triage_info: Dict[str, Any] | None = None,
+        cell_rows: List[Dict[str, Any]] | None = None,
+        summary: Dict[str, Any] | None = None,
+    ) -> None:
+        """Queue analyze sidecars to flush only after durable-write allow.
+
+        Used so triage.json / analysis_cells.jsonl / analysis_summary.json
+        never land if Magika stops the shared ThreatReport.save choke.
+        """
+        pending: Dict[str, Any] = getattr(self, "_pending_artifact_sidecars", None) or {}
+        pending["artifacts_dir"] = Path(artifacts_dir)
+        if triage_info is not None:
+            pending["triage_info"] = triage_info
+        if cell_rows is not None:
+            pending["cell_rows"] = cell_rows
+        if summary is not None:
+            pending["summary"] = summary
+        self._pending_artifact_sidecars = pending
+
+    def _flush_pending_artifact_sidecars(self) -> None:
+        pending: Dict[str, Any] | None = getattr(self, "_pending_artifact_sidecars", None)
+        if not pending:
+            return
+        artifacts_dir = Path(pending["artifacts_dir"])
+        artifacts_dir.mkdir(parents=True, exist_ok=True)
+        triage_info = pending.get("triage_info")
+        if triage_info is not None:
+            (artifacts_dir / "triage.json").write_text(
+                json.dumps(triage_info, indent=2), encoding="utf-8"
+            )
+        cell_rows = pending.get("cell_rows")
+        if cell_rows is not None:
+            cells_path = artifacts_dir / "analysis_cells.jsonl"
+            with cells_path.open("w", encoding="utf-8") as out:
+                for row in cell_rows:
+                    out.write(json.dumps(row, ensure_ascii=False) + "\n")
+        summary = pending.get("summary")
+        if summary is not None:
+            (artifacts_dir / "analysis_summary.json").write_text(
+                json.dumps(summary, indent=2), encoding="utf-8"
+            )
+        self._pending_artifact_sidecars = {}
+
     def save(self, output_path: Path):
         """Save both text and JSON reports.
 
         Magika lean choke: checkpoint BEFORE durable report writes.
         Shared entry for analyze_and_save + analyze_artifacts.
+        Also flushes any stashed analyze sidecars (triage/cells/summary)
+        so a stop never leaves partials — one Jev vote, no double-call.
         GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
         """
         from tslit_dspy.governance.gate import require_durable_write_allow
 
         output_path = Path(output_path)
+        pending = getattr(self, "_pending_artifact_sidecars", None) or {}
+        sidecar_keys = sorted(
+            k for k in ("triage_info", "cell_rows", "summary") if k in pending
+        )
         require_durable_write_allow(
             kind="save_threat_report",
             path=output_path,
@@ -230,14 +283,17 @@ class ThreatReport:
                 f"persist threat report models={','.join(self.model_names)} "
                 f"n_results={len(self.results)} "
                 f"threats={self.total_threats_found} path={output_path}"
+                + (f" sidecars={','.join(sidecar_keys)}" if sidecar_keys else "")
             ),
             extra={
                 "model_names": list(self.model_names),
                 "n_results": len(self.results),
                 "total_threats_found": self.total_threats_found,
+                "sidecars": sidecar_keys,
             },
         )
         output_path.parent.mkdir(parents=True, exist_ok=True)
         output_path.write_text(self.generate_text_report(), encoding="utf-8")
         json_path = output_path.with_suffix(".json")
         json_path.write_text(json.dumps(self.generate_json_report(), indent=2), encoding="utf-8")
+        self._flush_pending_artifact_sidecars()

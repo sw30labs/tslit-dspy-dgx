@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save chokes (no API key)."""
+"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ folded sidecars)."""
 
 from __future__ import annotations
 
@@ -100,6 +100,53 @@ with tempfile.TemporaryDirectory() as td:
             assert e.action == "stop", e
             print("REPORT BLOCK:", e)
     leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+    assert not leftovers, leftovers
+
+
+# 6) ThreatReport.save with stashed sidecars — allow flushes all; one checkpoint
+with tempfile.TemporaryDirectory() as td:
+    artifacts = Path(td)
+    out = artifacts / "analysis_report.md"
+    report = ThreatReport(model_names=["mock-model"], results=[])
+    report.stash_artifact_sidecars(
+        artifacts_dir=artifacts,
+        triage_info={"n_muse": 1, "n_skip": 0},
+        cell_rows=[{"probe_id": "p1"}],
+        summary={"total_threats_found": 0},
+    )
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "allow", "detail": "ok"},
+    ) as rc:
+        report.save(out)
+    assert rc.call_count == 1, rc.call_count
+    assert out.is_file() and (artifacts / "triage.json").is_file()
+    assert (artifacts / "analysis_cells.jsonl").is_file()
+    assert (artifacts / "analysis_summary.json").is_file()
+    print("SIDECAR ALLOW: flushed triage/cells/summary once")
+
+# 7) stop with pending sidecars → no durable files
+with tempfile.TemporaryDirectory() as td:
+    artifacts = Path(td)
+    out = artifacts / "analysis_report.md"
+    report = ThreatReport(model_names=["mock-model"], results=[])
+    report.stash_artifact_sidecars(
+        artifacts_dir=artifacts,
+        triage_info={"n_muse": 1, "n_skip": 0},
+        cell_rows=[{"probe_id": "p1"}],
+        summary={"total_threats_found": 0},
+    )
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "stop", "detail": "safety-CON-S32-01"},
+    ):
+        try:
+            report.save(out)
+            raise SystemExit("expected GovernanceBlocked on sidecar save")
+        except GovernanceBlocked as e:
+            assert e.action == "stop", e
+            print("SIDECAR BLOCK:", e)
+    leftovers = [p for p in artifacts.rglob("*") if p.is_file()]
     assert not leftovers, leftovers
 
 print("smoke_durable_write_gate: OK")

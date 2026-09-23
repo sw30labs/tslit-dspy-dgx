@@ -12,9 +12,9 @@ Lean Magika-thin v0: **one choke before durable writes**. Do **not** sprinkle Je
 |---|-----------|---------------|-------------------|---------|-----|
 | 1 | Persist probe campaign artifacts | `probe_campaign.py:save_campaign` | Durable FS write (workspace/scans NDJSON/meta/canary) | **yes** | Single choke covering the main production write path (`tslit scan` / CLI) |
 | 2 | Per-probe request dump | `probe_campaign.py:dump_request_bundle` | Durable FS write (audit dumps) | later | High volume during probe; covered indirectly once campaign save is gated; gate earlier only if dumps escape workspace |
-| 3 | Adapter triage + cells write | `adapter.py:TSLITAdapter.analyze` | Durable FS write (`triage.json`, `analysis_cells.jsonl`) | later | Same analyze session usually followed by report save; avoid double-prompting Jev |
+| 3 | Adapter triage + cells write | `adapter.py:DSPyAnalyzerAdapter.analyze` | Durable FS write (`triage.json`, `analysis_cells.jsonl`) | **yes** (folded) | Stashed on report; flushed after `ThreatReport.save` allow when `write_sidecars=False`. Standalone analyze gates with `kind=save_analyze_sidecars` |
 | 4 | Adapter report save | `schemas.ThreatReport.save` (via `analyze_and_save` / `analyze_artifacts`) | Durable FS write (md+json report) | **yes** | Shared second choke: one gate in `ThreatReport.save`; both adapter + probe analyze paths reuse `require_durable_write_allow` |
-| 5 | Analyze artifacts summary | `probe_campaign.py:analyze_artifacts` | Durable FS write (`analysis_summary.json` + report) | later | Downstream of adapter; gate once at a shared write helper |
+| 5 | Analyze artifacts summary | `probe_campaign.py:analyze_artifacts` | Durable FS write (`analysis_summary.json` + report) | **yes** (folded) | Summary stashed then flushed inside gated `ThreatReport.save` — stop leaves no summary/partials |
 | 6 | Evaluation report | `evaluate.py:run_evaluation` | Durable FS write (md + scores json under workspace/evaluation) | later | Offline metric path; less “agent consequential” |
 | 7 | MIPRO compiled model persist | `optimize.py:run_optimization` / `_persist_from_logs` | Durable FS write (compiled program json) | later | Training artifact; human-driven; escalate candidate if auto-deploy ever appears |
 | 8 | CLI scan orchestration | `cli.py:cmd_scan` | Orchestrates probe+save+analyze | no (as separate gate) | Keep logic in `save_campaign`; CLI only surfaces `GovernanceBlocked` |
@@ -29,12 +29,14 @@ Lean Magika-thin v0: **one choke before durable writes**. Do **not** sprinkle Je
 | 17 | Destructive delete/rmtree | (none found in package core) | Destructive | no | Absent today |
 | 18 | Workspace logs / history | agent_loop style (ar only) | Durable FS | n/a on dgx | dgx has no agent_loop; ar gated write_file/run_command/append_results |
 
-**Inventory count:** 18 candidates catalogued; **2 wired in v0** (`save_campaign`, `ThreatReport.save`).
+**Inventory count:** 18 candidates catalogued; **2 chokes wired** (`save_campaign`, `ThreatReport.save`); analyze sidecars/summary **folded** into the report save choke (no third Jev call).
 
 ## Wired chokes (v0)
 
 1. **`tslit_dspy.probe_campaign.save_campaign`** — checkpoint **before** any NDJSON/meta/canary write (`kind=save_campaign`).
-2. **`tslit_dspy.schemas.ThreatReport.save`** — checkpoint **before** md+json report write (`kind=save_threat_report`). Shared entry for `TSLITAdapter.analyze_and_save` and `probe_campaign.analyze_artifacts` (no duplicated checkpoint logic).
+2. **`tslit_dspy.schemas.ThreatReport.save`** — checkpoint **before** md+json report write (`kind=save_threat_report`). Shared entry for `DSPyAnalyzerAdapter.analyze_and_save` and `probe_campaign.analyze_artifacts`. After allow, also flushes stashed analyze sidecars (`triage.json`, `analysis_cells.jsonl`, `analysis_summary.json`) so one vote covers the whole durable bundle.
+
+3. **Standalone `analyze(..., write_sidecars=True)`** — if analyze is not followed by save, gates with `kind=save_analyze_sidecars` before writing triage/cells. `analyze_and_save` / `analyze_artifacts` pass `write_sidecars=False` to avoid double-Jev.
 
 Shared helper: `tslit_dspy.governance.gate.require_durable_write_allow`.
 
@@ -57,10 +59,9 @@ Shared helper: `tslit_dspy.governance.gate.require_durable_write_allow`.
 
 - Live smoke with `AI_GATEWAY_API_KEY` + disagg canvas on Mac (report-save narrative still Switch-sensitive)
 - Narrative→structured answers gap for live Jev (mock uses keyword cues)
-- Adapter `analyze` triage/cells writes (`triage.json`, `analysis_cells.jsonl`) — still later; avoid double-prompting same session
-- `analyze_artifacts` `analysis_summary.json` — covered indirectly when save raises; optional dedicated gate later
 - Probe-time network gate (adversary target logs)
 - Real HITL path for `human` (today fail-closed)
+- Evaluation / MIPRO persist chokes (candidates 6–7) when those paths matter operationally
 
 ## Live smoke note (2026-09-23)
 

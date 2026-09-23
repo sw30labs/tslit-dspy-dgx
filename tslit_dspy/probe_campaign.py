@@ -1479,21 +1479,20 @@ def analyze_artifacts(
         model=detector_model,
     )
     names = model_names or ["target"]
-    report = adapter.analyze(str(artifacts_dir), model_names=names, triage=triage)
+    # Defer triage/cells/summary into ThreatReport.save (single Magika choke).
+    report = adapter.analyze(
+        str(artifacts_dir), model_names=names, triage=triage, write_sidecars=False
+    )
 
     if output_path is None:
         output_path = artifacts_dir / "analysis_report.md"
-    report.save(output_path)
 
-    triage_path = artifacts_dir / "triage.json"
+    pending = getattr(report, "_pending_artifact_sidecars", None) or {}
+    triage_info = pending.get("triage_info") or {}
     triage_block: dict[str, Any] = {"enabled": triage}
-    if triage and triage_path.is_file():
-        try:
-            info = json.loads(triage_path.read_text(encoding="utf-8"))
-            triage_block["muse"] = info.get("n_muse")
-            triage_block["skip"] = info.get("n_skip")
-        except (OSError, json.JSONDecodeError):
-            pass
+    if triage:
+        triage_block["muse"] = triage_info.get("n_muse")
+        triage_block["skip"] = triage_info.get("n_skip")
     summary = {
         "model_names": report.model_names,
         "total_results": len(report.results),
@@ -1505,7 +1504,6 @@ def analyze_artifacts(
     for r in report.results:
         cat = r.final_category
         summary["by_category"][cat] = summary["by_category"].get(cat, 0) + 1
-    (artifacts_dir / "analysis_summary.json").write_text(
-        json.dumps(summary, indent=2), encoding="utf-8"
-    )
+    report.stash_artifact_sidecars(artifacts_dir=artifacts_dir, summary=summary)
+    report.save(output_path)
     return summary

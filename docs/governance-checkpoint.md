@@ -68,7 +68,10 @@ Pointer: full candidate list lives in [magika-decision-points.md](magika-decisio
 Lean v0 chokes (same helper, no DSPy `forward()`):
 
 1. `save_campaign` — probe NDJSON/meta/canary
-2. `ThreatReport.save` — report md+json (`analyze_and_save` / `analyze_artifacts`)
+2. `ThreatReport.save` — report md+json **plus** stashed analyze sidecars
+   (`triage.json`, `analysis_cells.jsonl`, `analysis_summary.json`) for
+   `analyze_and_save` / `analyze_artifacts` (one Jev vote; no double-call)
+3. Standalone `analyze(write_sidecars=True)` — `kind=save_analyze_sidecars` only when save is not on the stack
 
 ## Env
 

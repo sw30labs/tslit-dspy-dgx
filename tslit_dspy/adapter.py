@@ -89,12 +89,18 @@ class DSPyAnalyzerAdapter:
         model_names: Optional[List[str]] = None,
         *,
         triage: bool = True,
+        write_sidecars: bool = True,
     ) -> ThreatReport:
         """Analyze NDJSON artifacts — matches tslit.analyzer.core.run_analysis interface.
 
         Args:
             artifacts_dir: Path to directory containing NDJSON campaign artifacts.
             model_names: Model names for the report header.
+            triage: Pairwise triage before Muse.
+            write_sidecars: If True (standalone analyze), Magika-gate then write
+                triage.json + analysis_cells.jsonl. If False (analyze_and_save /
+                analyze_artifacts), stash sidecars on the report so ThreatReport.save
+                flushes them after its single choke — no double-Jev.
 
         Returns:
             ThreatReport with all analysis results.
@@ -114,13 +120,10 @@ class DSPyAnalyzerAdapter:
             from tslit_dspy.pairwise import apply_triage
 
             triage_info = apply_triage(records)
-            triage_path = artifacts_path / "triage.json"
-            triage_path.write_text(json.dumps(triage_info, indent=2), encoding="utf-8")
             logger.info(
-                "Pairwise triage skip=%s muse=%s → %s",
+                "Pairwise triage skip=%s muse=%s (durable write deferred)",
                 triage_info.get("n_skip"),
                 triage_info.get("n_muse"),
-                triage_path,
             )
 
         from tslit_dspy.pairwise import triage_skip_result
@@ -156,28 +159,52 @@ class DSPyAnalyzerAdapter:
 
         report = ThreatReport(model_names=model_names, results=results)
         logger.info(f"Analysis complete: {report.total_threats_found} confirmed threats")
-        cells_path = artifacts_path / "analysis_cells.jsonl"
-        with cells_path.open("w", encoding="utf-8") as out:
-            for rec, result in zip(records, results):
-                row = {
-                    "probe_id": rec.get("probe_id"),
-                    "task_id": rec.get("task_id") or rec.get("_task_id"),
-                    "affiliation": rec.get("affiliation"),
-                    "probe_date": rec.get("probe_date") or rec.get("virtual_time"),
-                    "threat_category": result.threat_category,
-                    "final_category": result.final_category,
-                    "qa_valid": result.qa_valid,
-                    "risk_score": result.risk_score,
-                    "detector_flags": rec.get("detector_flags"),
-                    "response_len": len(rec.get("response_text") or ""),
-                    "evidence_spans": result.evidence_spans,
-                    "qa_notes": result.qa_notes,
-                    "triage": rec.get("triage"),
-                    "triage_reasons": rec.get("triage_reasons"),
-                    "sibling_id": rec.get("sibling_id"),
-                }
-                out.write(json.dumps(row, ensure_ascii=False) + "\n")
-        logger.info("Wrote per-cell table → %s", cells_path)
+        cell_rows: List[Dict[str, Any]] = []
+        for rec, result in zip(records, results):
+            cell_rows.append({
+                "probe_id": rec.get("probe_id"),
+                "task_id": rec.get("task_id") or rec.get("_task_id"),
+                "affiliation": rec.get("affiliation"),
+                "probe_date": rec.get("probe_date") or rec.get("virtual_time"),
+                "threat_category": result.threat_category,
+                "final_category": result.final_category,
+                "qa_valid": result.qa_valid,
+                "risk_score": result.risk_score,
+                "detector_flags": rec.get("detector_flags"),
+                "response_len": len(rec.get("response_text") or ""),
+                "evidence_spans": result.evidence_spans,
+                "qa_notes": result.qa_notes,
+                "triage": rec.get("triage"),
+                "triage_reasons": rec.get("triage_reasons"),
+                "sibling_id": rec.get("sibling_id"),
+            })
+        report.stash_artifact_sidecars(
+            artifacts_dir=artifacts_path,
+            triage_info=triage_info if triage else None,
+            cell_rows=cell_rows,
+        )
+        if write_sidecars:
+            # Standalone analyze path — gate here (save not in this call stack).
+            from tslit_dspy.governance.gate import require_durable_write_allow
+
+            require_durable_write_allow(
+                kind="save_analyze_sidecars",
+                path=artifacts_path,
+                narrative=(
+                    f"persist analyze sidecars triage={bool(triage)} "
+                    f"n_cells={len(cell_rows)} path={artifacts_path}"
+                ),
+                extra={
+                    "n_cells": len(cell_rows),
+                    "triage": bool(triage),
+                    "n_results": len(results),
+                },
+            )
+            report._flush_pending_artifact_sidecars()
+            logger.info(
+                "Wrote analyze sidecars → %s",
+                artifacts_path / "analysis_cells.jsonl",
+            )
         return report
 
     def analyze_and_save(
@@ -196,9 +223,10 @@ class DSPyAnalyzerAdapter:
         Returns:
             Dict matching the existing AnalysisState format for compatibility.
         """
-        report = self.analyze(artifacts_dir, model_names)
+        # Defer sidecar writes into ThreatReport.save (single Magika choke).
+        report = self.analyze(artifacts_dir, model_names, write_sidecars=False)
 
-        # Save reports
+        # Save reports (+ flushed triage/cells)
         output = Path(output_path)
         report.save(output)
         logger.info(f"Reports saved to {output} and {output.with_suffix('.json')}")
