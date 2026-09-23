@@ -72,6 +72,7 @@ Lean v0 chokes (same helper, no DSPy `forward()`):
    (`triage.json`, `analysis_cells.jsonl`, `analysis_summary.json`) for
    `analyze_and_save` / `analyze_artifacts` (one Jev vote; no double-call)
 3. Standalone `analyze(write_sidecars=True)` — `kind=save_analyze_sidecars` only when save is not on the stack
+4. `dump_request_bundle` — per-probe audit JSON (`kind=dump_request_bundle`); mkdir after allow
 
 ## Env
 

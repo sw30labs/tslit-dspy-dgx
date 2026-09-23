@@ -11,7 +11,7 @@ Lean Magika-thin v0: **one choke before durable writes**. Do **not** sprinkle Je
 | # | Candidate | file:function | Side-effect class | Gate v0 | Why |
 |---|-----------|---------------|-------------------|---------|-----|
 | 1 | Persist probe campaign artifacts | `probe_campaign.py:save_campaign` | Durable FS write (workspace/scans NDJSON/meta/canary) | **yes** | Single choke covering the main production write path (`tslit scan` / CLI) |
-| 2 | Per-probe request dump | `probe_campaign.py:dump_request_bundle` | Durable FS write (audit dumps) | later | High volume during probe; covered indirectly once campaign save is gated; gate earlier only if dumps escape workspace |
+| 2 | Per-probe request dump | `probe_campaign.py:dump_request_bundle` | Durable FS write (audit dumps) | **yes** | Lean third choke: gate before each audit JSON write (`kind=dump_request_bundle`); dump_dir mkdir deferred until allow |
 | 3 | Adapter triage + cells write | `adapter.py:DSPyAnalyzerAdapter.analyze` | Durable FS write (`triage.json`, `analysis_cells.jsonl`) | **yes** (folded) | Stashed on report; flushed after `ThreatReport.save` allow when `write_sidecars=False`. Standalone analyze gates with `kind=save_analyze_sidecars` |
 | 4 | Adapter report save | `schemas.ThreatReport.save` (via `analyze_and_save` / `analyze_artifacts`) | Durable FS write (md+json report) | **yes** | Shared second choke: one gate in `ThreatReport.save`; both adapter + probe analyze paths reuse `require_durable_write_allow` |
 | 5 | Analyze artifacts summary | `probe_campaign.py:analyze_artifacts` | Durable FS write (`analysis_summary.json` + report) | **yes** (folded) | Summary stashed then flushed inside gated `ThreatReport.save` — stop leaves no summary/partials |
@@ -29,14 +29,14 @@ Lean Magika-thin v0: **one choke before durable writes**. Do **not** sprinkle Je
 | 17 | Destructive delete/rmtree | (none found in package core) | Destructive | no | Absent today |
 | 18 | Workspace logs / history | agent_loop style (ar only) | Durable FS | n/a on dgx | dgx has no agent_loop; ar gated write_file/run_command/append_results |
 
-**Inventory count:** 18 candidates catalogued; **2 chokes wired** (`save_campaign`, `ThreatReport.save`); analyze sidecars/summary **folded** into the report save choke (no third Jev call).
+**Inventory count:** 18 candidates catalogued; **3 chokes wired** (`save_campaign`, `ThreatReport.save`, `dump_request_bundle`); analyze sidecars/summary **folded** into the report save choke (no double-Jev on that path).
 
 ## Wired chokes (v0)
 
 1. **`tslit_dspy.probe_campaign.save_campaign`** — checkpoint **before** any NDJSON/meta/canary write (`kind=save_campaign`).
 2. **`tslit_dspy.schemas.ThreatReport.save`** — checkpoint **before** md+json report write (`kind=save_threat_report`). Shared entry for `DSPyAnalyzerAdapter.analyze_and_save` and `probe_campaign.analyze_artifacts`. After allow, also flushes stashed analyze sidecars (`triage.json`, `analysis_cells.jsonl`, `analysis_summary.json`) so one vote covers the whole durable bundle.
-
 3. **Standalone `analyze(..., write_sidecars=True)`** — if analyze is not followed by save, gates with `kind=save_analyze_sidecars` before writing triage/cells. `analyze_and_save` / `analyze_artifacts` pass `write_sidecars=False` to avoid double-Jev.
+4. **`tslit_dspy.probe_campaign.dump_request_bundle`** — checkpoint **before** per-probe audit JSON write (`kind=dump_request_bundle`). Parent `dump_dir` mkdir is deferred until allow so a stop leaves no empty audit tree.
 
 Shared helper: `tslit_dspy.governance.gate.require_durable_write_allow`.
 
@@ -61,7 +61,7 @@ Shared helper: `tslit_dspy.governance.gate.require_durable_write_allow`.
 - Narrative→structured answers gap for live Jev (mock uses keyword cues)
 - Probe-time network gate (adversary target logs)
 - Real HITL path for `human` (today fail-closed)
-- Evaluation / MIPRO persist chokes (candidates 6–7) when those paths matter operationally
+- Evaluation / MIPRO persist chokes (candidates 6–7) when those paths matter operationally — MIPRO has multiple persist sites (interrupt/signal/final); keep Magika-thin on dump first
 
 ## Live smoke note (2026-09-23)
 

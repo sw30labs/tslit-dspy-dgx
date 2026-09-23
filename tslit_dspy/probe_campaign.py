@@ -452,7 +452,28 @@ def dump_request_bundle(
     response_text: Optional[str] = None,
     error: Optional[str] = None,
 ) -> None:
-    """Write a per-request audit bundle (messages + asserts + optional render)."""
+    """Write a per-request audit bundle (messages + asserts + optional render).
+
+    Magika lean choke: checkpoint BEFORE durable dump writes.
+    GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+    """
+    from tslit_dspy.governance.gate import require_durable_write_allow
+
+    path = Path(path)
+    require_durable_write_allow(
+        kind="dump_request_bundle",
+        path=path,
+        narrative=(
+            f"persist probe request dump probe_id={probe_id} "
+            f"model={model} path={path}"
+        ),
+        extra={
+            "probe_id": probe_id,
+            "model": model,
+            "hygiene_ok": not bool(hygiene_violations),
+            "has_error": bool(error),
+        },
+    )
     path.parent.mkdir(parents=True, exist_ok=True)
     bundle = {
         "probe_id": probe_id,
@@ -1138,8 +1159,8 @@ def run_probe_campaign(
     hygiene_failures = 0
     canary_results: list[dict[str, Any]] = []
 
-    if dump_dir is not None:
-        dump_dir.mkdir(parents=True, exist_ok=True)
+    # dump_dir created lazily inside dump_request_bundle after gate allow
+    # so a stop leaves no empty audit directory.
 
     logger.info(
         "Probe campaign: model=%s base=%s probes=%d canaries=%s strict_hygiene=%s",

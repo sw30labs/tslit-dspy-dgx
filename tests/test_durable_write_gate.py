@@ -1,4 +1,4 @@
-"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars)."""
+"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle."""
 
 from __future__ import annotations
 
@@ -13,7 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from tslit_dspy.governance.gate import GovernanceBlocked, require_durable_write_allow
-from tslit_dspy.probe_campaign import CampaignResult, save_campaign
+from tslit_dspy.probe_campaign import CampaignResult, dump_request_bundle, save_campaign
 from tslit_dspy.schemas import ThreatReport
 
 
@@ -179,6 +179,62 @@ class AnalyzeArtifactsFoldContractTests(unittest.TestCase):
             '(artifacts_dir / "analysis_summary.json").write_text',
             src,
         )
+
+
+
+class DumpRequestBundleGateTests(unittest.TestCase):
+    """Per-probe audit dump gated before any durable write."""
+
+    def _call(self, path: Path) -> None:
+        dump_request_bundle(
+            path,
+            probe_id="p1",
+            model="mock-target",
+            messages=[{"role": "user", "content": "hi"}],
+            request_kwargs={"max_tokens": 16},
+            hygiene_violations=[],
+            response_text="ok",
+        )
+
+    def test_allow_writes(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "dumps" / "p1.json"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "allow", "detail": "ok"},
+            ):
+                self._call(out)
+            self.assertTrue(out.is_file())
+
+    def test_stop_blocks_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            dump_root = Path(td) / "dumps"
+            out = dump_root / "p1.json"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "stop", "detail": "safety"},
+            ):
+                with self.assertRaises(GovernanceBlocked):
+                    self._call(out)
+            leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+            self.assertEqual(leftovers, [])
+            # fail closed: no empty audit tree either
+            self.assertFalse(dump_root.exists())
+
+    def test_kind_shape(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "p1.json"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "allow", "detail": "ok"},
+            ) as rc:
+                self._call(out)
+            state = rc.call_args.kwargs.get("state") or {}
+            self.assertEqual(state.get("tool"), "dump_request_bundle")
+            self.assertEqual(state.get("path"), str(out))
+            self.assertEqual(state.get("probe_id"), "p1")
+            self.assertEqual(state.get("model"), "mock-target")
+
 
 
 

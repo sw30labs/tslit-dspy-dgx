@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ folded sidecars)."""
+"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle."""
 
 from __future__ import annotations
 
@@ -19,7 +19,7 @@ for candidate in (Path.cwd(), ROOT, ROOT.parent):
 sys.path.insert(0, str(ROOT))
 
 from tslit_dspy.governance.gate import GovernanceBlocked, require_durable_write_allow  # noqa: E402
-from tslit_dspy.probe_campaign import CampaignResult, save_campaign  # noqa: E402
+from tslit_dspy.probe_campaign import CampaignResult, dump_request_bundle, save_campaign  # noqa: E402
 from tslit_dspy.schemas import ThreatReport  # noqa: E402
 
 
@@ -148,5 +148,49 @@ with tempfile.TemporaryDirectory() as td:
             print("SIDECAR BLOCK:", e)
     leftovers = [p for p in artifacts.rglob("*") if p.is_file()]
     assert not leftovers, leftovers
+
+
+
+# 8) dump_request_bundle allow → audit JSON lands
+with tempfile.TemporaryDirectory() as td:
+    out = Path(td) / "dumps" / "p1.json"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "allow", "detail": "ok"},
+    ):
+        dump_request_bundle(
+            out,
+            probe_id="p1",
+            model="mock-target",
+            messages=[{"role": "user", "content": "hi"}],
+            request_kwargs={"max_tokens": 16},
+            response_text="ok",
+        )
+    assert out.is_file(), out
+    print("DUMP ALLOW: wrote", out.name)
+
+# 9) dump_request_bundle stop → no durable files / no empty dump_dir
+with tempfile.TemporaryDirectory() as td:
+    dump_root = Path(td) / "dumps"
+    out = dump_root / "p1.json"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "stop", "detail": "safety-CON-S32-01"},
+    ):
+        try:
+            dump_request_bundle(
+                out,
+                probe_id="p1",
+                model="mock-target",
+                messages=[{"role": "user", "content": "hi"}],
+                request_kwargs={"max_tokens": 16},
+            )
+            raise SystemExit("expected GovernanceBlocked on dump")
+        except GovernanceBlocked as e:
+            assert e.action == "stop", e
+            print("DUMP BLOCK:", e)
+    leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+    assert not leftovers, leftovers
+    assert not dump_root.exists(), "empty dump_dir should not be created on stop"
 
 print("smoke_durable_write_gate: OK")
