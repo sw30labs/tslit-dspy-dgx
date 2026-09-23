@@ -51,3 +51,28 @@ See [s32-disaggregation-v0.md](s32-disaggregation-v0.md) — Diogo-style atomic 
 ## Methodology
 
 Canonical living playbook: `odc-orchestration-design-canvas/docs/canvas-governance-compiler/METHODOLOGY.md` (Diogo + Magika). This branch keeps TSLIT-specific disaggregation in [s32-disaggregation-v0.md](s32-disaggregation-v0.md).
+
+<!-- magika-dgx-durable-write-choke -->
+# Governance checkpoint — dgx runtime choke
+
+Pointer: full candidate list lives in [magika-decision-points.md](magika-decision-points.md).
+
+## Runtime API
+
+- `tslit_dspy.governance.run_checkpoint(canvas_path=..., state=..., live=...)`
+- `tslit_dspy.governance.require_durable_write_allow(kind=..., path=..., narrative=..., extra=...)`
+- Raises `GovernanceBlocked` unless action is `allow` (or gate disabled)
+
+## Where it runs
+
+Inside `save_campaign` only (lean v0). Not inside DSPy `forward()`.
+
+## Env
+
+| Var | Meaning |
+|-----|---------|
+| `GOVERNANCE_CHECKPOINT=0` | Disable |
+| `GOVERNANCE_LIVE=1` | Live Jev |
+| `GOVERNANCE_CANVAS_PATH` | Canvas JSON |
+| `GOVERNANCE_COMPILER_PATH` | ODC `governance-compiler` root |
+

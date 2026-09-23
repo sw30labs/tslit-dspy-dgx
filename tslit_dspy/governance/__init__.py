@@ -1,5 +1,13 @@
-"""In-agent governance checkpoint (Canvas → IR → allow|human|escalate|stop)."""
+"""Thin Magika-style governance checkpoint (Canvas → IR → allow|human|escalate|stop)."""
 
-from .checkpoint import CheckpointDecision, load_contract_json, run_checkpoint
+from tslit_dspy.governance.checkpoint import run_checkpoint
+from tslit_dspy.governance.gate import (
+    GovernanceBlocked,
+    require_durable_write_allow,
+)
 
-__all__ = ["CheckpointDecision", "load_contract_json", "run_checkpoint"]
+__all__ = [
+    "run_checkpoint",
+    "GovernanceBlocked",
+    "require_durable_write_allow",
+]

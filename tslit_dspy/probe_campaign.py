@@ -1342,8 +1342,25 @@ def save_campaign(
     run_id: Optional[str] = None,
 ) -> Path:
     """Write NDJSON + companion requests + meta.json + canary summary."""
-    artifacts_dir.mkdir(parents=True, exist_ok=True)
+    # Magika lean choke: checkpoint BEFORE durable campaign writes.
+    # GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+    from tslit_dspy.governance.gate import require_durable_write_allow
+
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    require_durable_write_allow(
+        kind="save_campaign",
+        path=artifacts_dir,
+        narrative=(
+            f"persist probe campaign target={result.target_model} "
+            f"n_records={len(result.records)} run_id={run_id}"
+        ),
+        extra={
+            "target_model": result.target_model,
+            "n_records": len(result.records),
+            "run_id": run_id,
+        },
+    )
+    artifacts_dir.mkdir(parents=True, exist_ok=True)
     safe_model = re.sub(r"[^a-zA-Z0-9_.-]+", "_", result.target_model)
     stem = f"scan_{safe_model}_{run_id}"
 

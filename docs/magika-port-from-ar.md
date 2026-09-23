@@ -35,3 +35,41 @@ Same env flags as ar when wired: `GOVERNANCE_CHECKPOINT=0` off, `GOVERNANCE_LIVE
 - Edit Magika on Mac `/Users/spider/REPOS/tslit-dspy-dgx`.
 - Pull on sparkone `/home/spider/Desktop/tslit-dspy-dgx` for Ollama smokes.
 - Git only — no rsync of the trees.
+
+<!-- magika-dgx-durable-write-choke -->
+# Magika port — dgx lean durable-write choke (addendum)
+
+See also: [magika-decision-points.md](magika-decision-points.md) (full inventory).
+
+## What moved from ar
+
+| ar | dgx v0 |
+|----|--------|
+| `execute_tool` gates `write_file` / `run_command` / `append_results` | **No agent_loop** — do not port `agent_loop_mlx` |
+| `run_checkpoint` + env flags | Reuse `tslit_dspy.governance.checkpoint.run_checkpoint` |
+| Fail closed | Same via `require_durable_write_allow` |
+
+## Choke
+
+**One:** `probe_campaign.save_campaign` → `governance.gate.require_durable_write_allow` before durable writes under `workspace/scans/`.
+
+```bash
+# disable
+GOVERNANCE_CHECKPOINT=0 tslit scan ...
+
+# live Jev
+GOVERNANCE_LIVE=1 AI_GATEWAY_API_KEY=... \
+  GOVERNANCE_CANVAS_PATH=/Users/spider/REPOS/odc-orchestration-design-canvas/odc-canvas-sessionTSLIT-DsPy/tslit-dspy-detection-pipeline-canvas.disaggregated-v0.json \
+  tslit scan ...
+```
+
+Point at the 12-rule disagg canvas with `GOVERNANCE_CANVAS_PATH` (or rely on checkpoint.py DEFAULT_CANVAS).
+
+## Smoke
+
+```bash
+PYTHONPATH=. python3 scripts/smoke_durable_write_gate.py
+# or
+PYTHONPATH=. python3 -m pytest tests/test_durable_write_gate.py -q
+```
+

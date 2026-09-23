@@ -268,7 +268,13 @@ def cmd_scan(args: argparse.Namespace) -> int:
         if not result.records:
             print("[scan] nothing to probe (empty campaign or all probe_ids already on disk)")
         else:
-            ndjson = save_campaign(result, artifacts)
+            try:
+                from tslit_dspy.governance.gate import GovernanceBlocked
+
+                ndjson = save_campaign(result, artifacts)
+            except GovernanceBlocked as blocked:
+                print(f"[scan] ERROR: {blocked}", file=sys.stderr)
+                return 2
             print(f"[scan] probes saved → {ndjson} ({len(result.records)} records)")
         print(f"[scan] request dumps → {dump_dir}")
         if result.canary_summary:
