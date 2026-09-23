@@ -4,6 +4,8 @@ Canonical Pascal-facing deliverable lives in the ODC repo:
 
 `../odc-orchestration-design-canvas/docs/canvas-governance-compiler/PASCAL-POC-TSLIT-DSPY-DGX.md`
 
+Board one-pager: `../odc-orchestration-design-canvas/docs/canvas-governance-compiler/PASCAL-ONEPAGER-MAGIKA.md`
+
 (Absolute on Nic’s Mac: `/Users/spider/REPOS/odc-orchestration-design-canvas/docs/canvas-governance-compiler/PASCAL-POC-TSLIT-DSPY-DGX.md`)
 
 ## This repo (tslit-dspy-dgx) @ `ddf0136`
