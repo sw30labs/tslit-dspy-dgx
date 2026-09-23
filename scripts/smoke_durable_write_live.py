@@ -20,15 +20,28 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-ODC_ENV = Path("/Users/spider/REPOS/odc-orchestration-design-canvas/.env")
-CANVAS = (
-    "/Users/spider/REPOS/odc-orchestration-design-canvas/"
-    "odc-canvas-sessionTSLIT-DsPy/"
-    "tslit-dspy-detection-pipeline-canvas.disaggregated-v0.json"
+def _odc_root() -> Path:
+    """Mac REPOS or sparkone Desktop; override with ODC_ROOT."""
+    env = (os.environ.get("ODC_ROOT") or "").strip()
+    if env:
+        return Path(env)
+    for cand in (
+        Path("/Users/spider/REPOS/odc-orchestration-design-canvas"),
+        Path("/home/spider/Desktop/odc-orchestration-design-canvas"),
+    ):
+        if cand.is_dir():
+            return cand
+    return Path("/Users/spider/REPOS/odc-orchestration-design-canvas")
+
+
+_ODC = _odc_root()
+ODC_ENV = _ODC / ".env"
+CANVAS = str(
+    _ODC
+    / "odc-canvas-sessionTSLIT-DsPy"
+    / "tslit-dspy-detection-pipeline-canvas.disaggregated-v0.json"
 )
-COMPILER = (
-    "/Users/spider/REPOS/odc-orchestration-design-canvas/governance-compiler"
-)
+COMPILER = str(_ODC / "governance-compiler")
 
 ALLOW_NARRATIVE = (
     "Decision point: durable write of probe campaign artifacts under workspace/scans/ only. "
