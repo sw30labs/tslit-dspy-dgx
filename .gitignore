@@ -22,7 +22,7 @@ build/
 *.swp
 
 # Local agent instruction files (machine-specific)
-AGENTS.md
+# AGENTS.md is tracked — shared Magika/Pascal state for coding agents.
 CLAUDE.md
 
 # Local drafts, not for the public tree
