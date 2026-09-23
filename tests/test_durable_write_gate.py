@@ -1,4 +1,4 @@
-"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation."""
+"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation + persist_mipro_compiled."""
 
 from __future__ import annotations
 
@@ -321,6 +321,118 @@ class EvaluationReportGateTests(unittest.TestCase):
             self.assertEqual(state.get("model"), "mock")
             self.assertEqual(state.get("n_examples"), 0)
             self.assertEqual(state.get("scores_path"), str(out.with_suffix(".json")))
+
+
+
+class MiproCompiledPersistGateTests(unittest.TestCase):
+    """optimize.persist_mipro_compiled gated before any compiled JSON write.
+
+    Offline Mac may lack .venv/dspy — stub import stack, then exercise the choke
+    with a fake program.save (no real MIPRO run).
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        dspy = mock.MagicMock()
+        sys.modules.setdefault("dspy", dspy)
+        sys.modules.setdefault("dspy.adapters", mock.MagicMock())
+        sys.modules.setdefault("dspy.adapters.chat_adapter", mock.MagicMock())
+        sys.modules.setdefault("dspy.signatures", mock.MagicMock())
+        sys.modules.setdefault("dspy.teleprompt", mock.MagicMock())
+        sys.modules.setdefault("dotenv", mock.MagicMock())
+        for k in list(sys.modules):
+            if k == "tslit_dspy.optimize" or k.startswith("tslit_dspy.optimize."):
+                del sys.modules[k]
+        import tslit_dspy.optimize as optimize_mod
+
+        cls._optimize = optimize_mod
+
+    def _fake_program(self):
+        prog = mock.MagicMock()
+        def _save(path):
+            Path(path).write_text('{"ok": true}', encoding="utf-8")
+        prog.save.side_effect = _save
+        return prog
+
+    def test_allow_writes_bundle(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "compiled" / "model.json"
+            ckpt = Path(td) / "compiled" / "model_checkpoint.json"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "allow", "detail": "ok"},
+            ) as rc:
+                self._optimize.persist_mipro_compiled(
+                    self._fake_program(),
+                    paths=[out, ckpt],
+                    reason="interrupt",
+                    compile_model="ollama",
+                    num_trials=3,
+                    auto=None,
+                )
+            self.assertEqual(rc.call_count, 1)
+            self.assertTrue(out.is_file())
+            self.assertTrue(ckpt.is_file())
+
+    def test_stop_blocks_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            compiled_root = Path(td) / "compiled"
+            out = compiled_root / "model.json"
+            ckpt = compiled_root / "model_checkpoint.json"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "stop", "detail": "safety"},
+            ):
+                with self.assertRaises(GovernanceBlocked):
+                    self._optimize.persist_mipro_compiled(
+                        self._fake_program(),
+                        paths=[out, ckpt],
+                        reason="final",
+                        compile_model="ollama",
+                        auto="light",
+                    )
+            leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+            self.assertEqual(leftovers, [])
+            self.assertFalse(compiled_root.exists())
+
+    def test_kind_shape(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "model.json"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "allow", "detail": "ok"},
+            ) as rc:
+                self._optimize.persist_mipro_compiled(
+                    self._fake_program(),
+                    paths=[out],
+                    reason="final",
+                    compile_model="ollama",
+                    auto="medium",
+                    num_trials=None,
+                )
+            state = rc.call_args.kwargs.get("state") or {}
+            self.assertEqual(state.get("tool"), "save_mipro_compiled")
+            self.assertEqual(state.get("path"), str(out))
+            self.assertEqual(state.get("reason"), "final")
+            self.assertEqual(state.get("model"), "ollama")
+            self.assertEqual(state.get("paths"), [str(out)])
+
+    def test_run_optimization_fold_contract(self):
+        """Source contract: interrupt/final/signal route through persist_mipro_compiled."""
+        src = (ROOT / "tslit_dspy" / "optimize.py").read_text(encoding="utf-8")
+        self.assertIn("def persist_mipro_compiled(", src)
+        self.assertIn('kind="save_mipro_compiled"', src)
+        self.assertIn("also_checkpoint", src)
+        # No ungated program.save outside the helper body.
+        # Heuristic: every .save( after require_durable should be inside the helper loop.
+        self.assertIn("persist_mipro_compiled(", src)
+        self.assertNotIn("checkpoint_path.parent.mkdir(parents=True, exist_ok=True)\n            best.save", src)
+        self.assertNotIn("prog.save(str(checkpoint_path))", src)
+        self.assertNotIn(
+            "output_path.parent.mkdir(parents=True, exist_ok=True)\n    compiled_analyzer.save",
+            src,
+        )
+
 
 
 

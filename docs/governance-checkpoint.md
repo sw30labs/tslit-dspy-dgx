@@ -74,6 +74,7 @@ Lean v0 chokes (same helper, no DSPy `forward()`):
 3. Standalone `analyze(write_sidecars=True)` — `kind=save_analyze_sidecars` only when save is not on the stack
 4. `dump_request_bundle` — per-probe audit JSON (`kind=dump_request_bundle`); mkdir after allow
 5. `run_evaluation` — evaluation md + scores JSON (`kind=save_evaluation_report`); mkdir after allow
+6. `persist_mipro_compiled` — MIPRO compiled JSON (+ checkpoint on interrupt) (`kind=save_mipro_compiled`); mkdir after allow; one vote per logical persist
 
 ## Env
 

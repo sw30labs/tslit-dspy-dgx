@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation."""
+"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation + persist_mipro_compiled."""
 
 from __future__ import annotations
 
@@ -258,5 +258,68 @@ with tempfile.TemporaryDirectory() as td:
     leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
     assert not leftovers, leftovers
     assert not eval_root.exists(), "empty evaluation dir should not be created on stop"
+
+
+
+# 12) persist_mipro_compiled allow → compiled JSON (+ checkpoint) land once
+for _k in list(sys.modules):
+    if _k == "tslit_dspy.optimize" or _k.startswith("tslit_dspy.optimize."):
+        del sys.modules[_k]
+sys.modules.setdefault("dspy.teleprompt", mock.MagicMock())
+from tslit_dspy.optimize import persist_mipro_compiled  # noqa: E402
+
+
+def _fake_mipro_program():
+    prog = mock.MagicMock()
+
+    def _save(path):
+        Path(path).write_text('{"ok": true}', encoding="utf-8")
+
+    prog.save.side_effect = _save
+    return prog
+
+
+with tempfile.TemporaryDirectory() as td:
+    out = Path(td) / "compiled" / "model.json"
+    ckpt = Path(td) / "compiled" / "model_checkpoint.json"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "allow", "detail": "ok"},
+    ) as rc:
+        persist_mipro_compiled(
+            _fake_mipro_program(),
+            paths=[out, ckpt],
+            reason="interrupt",
+            compile_model="ollama",
+            num_trials=2,
+        )
+    assert rc.call_count == 1, rc.call_count
+    assert out.is_file() and ckpt.is_file()
+    print("MIPRO ALLOW: wrote", out.name, "+", ckpt.name)
+
+# 13) persist_mipro_compiled stop → no durable files / no empty compiled dir
+with tempfile.TemporaryDirectory() as td:
+    compiled_root = Path(td) / "compiled"
+    out = compiled_root / "model.json"
+    ckpt = compiled_root / "model_checkpoint.json"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "stop", "detail": "safety-CON-S32-01"},
+    ):
+        try:
+            persist_mipro_compiled(
+                _fake_mipro_program(),
+                paths=[out, ckpt],
+                reason="final",
+                compile_model="ollama",
+                auto="light",
+            )
+            raise SystemExit("expected GovernanceBlocked on MIPRO persist")
+        except GovernanceBlocked as e:
+            assert e.action == "stop", e
+            print("MIPRO BLOCK:", e)
+    leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+    assert not leftovers, leftovers
+    assert not compiled_root.exists(), "empty compiled dir should not be created on stop"
 
 print("smoke_durable_write_gate: OK")
