@@ -25,3 +25,8 @@ Override with `GOVERNANCE_CANVAS_PATH` when you want the Muse/Ollama CON-S32-06 
 
 Design → Canvas → DecisionContract IR → in-agent checkpoint (`allow|human|escalate|stop`).  
 Jev only in adapter. No Jev in DSPy `forward()`.
+
+## Pascal pack extensions (ODC)
+
+See ODC Pascal report §§10–11 + diagram `pascal-poc-odc-before-now-future.md`: phase roadmap (feasibility→PoC→harden→expand→HITL→pilot) and honest TSLIT collateral before→after (detector accuracy/probe speed unchanged; write safety + policy traceability improved; no invented metrics).
+
