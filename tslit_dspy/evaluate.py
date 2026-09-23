@@ -248,7 +248,7 @@ def run_evaluation(
     }
 
     # Magika lean choke: checkpoint BEFORE durable eval md+json writes.
-    # GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+    # mkdir / write only after allow — stop leaves no report partials.
     from tslit_dspy.governance.gate import require_durable_write_allow
 
     require_durable_write_allow(

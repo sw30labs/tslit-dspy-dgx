@@ -184,7 +184,9 @@ class DSPyAnalyzerAdapter:
             cell_rows=cell_rows,
         )
         if write_sidecars:
-            # Standalone analyze path — gate here (save not in this call stack).
+            # Standalone analyze: save() is not on this stack, so we gate here.
+            # analyze_and_save folds sidecars into ThreatReport.save instead —
+            # one Magika choke, no double-Jev.
             from tslit_dspy.governance.gate import require_durable_write_allow
 
             require_durable_write_allow(

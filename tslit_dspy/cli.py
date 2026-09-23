@@ -269,6 +269,7 @@ def cmd_scan(args: argparse.Namespace) -> int:
             print("[scan] nothing to probe (empty campaign or all probe_ids already on disk)")
         else:
             try:
+                # Magika: save_campaign chokes before bytes; surface the refuse cleanly.
                 from tslit_dspy.governance.gate import GovernanceBlocked
 
                 ndjson = save_campaign(result, artifacts)

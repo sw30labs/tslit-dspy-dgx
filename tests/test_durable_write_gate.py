@@ -1,4 +1,11 @@
-"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation + persist_mipro_compiled."""
+"""Magika durable-write gate — unit coverage for the lean chokes.
+
+We patch run_checkpoint (allow vs stop) and assert: allow lands bytes;
+stop leaves zero files; GOVERNANCE_CHECKPOINT=0 bypasses. Covers
+save_campaign, ThreatReport.save (+ folded sidecars), dump_request_bundle,
+run_evaluation, and persist_mipro_compiled. Not a live Jev proof —
+see scripts/smoke_durable_write_live.py for that.
+"""
 
 from __future__ import annotations
 

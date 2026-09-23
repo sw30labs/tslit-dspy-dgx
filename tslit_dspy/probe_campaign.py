@@ -1362,9 +1362,13 @@ def save_campaign(
     *,
     run_id: Optional[str] = None,
 ) -> Path:
-    """Write NDJSON + companion requests + meta.json + canary summary."""
+    """Write NDJSON + companion requests + meta.json + canary summary.
+
+    Magika lean choke: checkpoint BEFORE durable campaign writes.
+    mkdir happens only after allow — stop leaves an empty artifacts dir.
+    GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+    """
     # Magika lean choke: checkpoint BEFORE durable campaign writes.
-    # GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
     from tslit_dspy.governance.gate import require_durable_write_allow
 
     run_id = run_id or datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")

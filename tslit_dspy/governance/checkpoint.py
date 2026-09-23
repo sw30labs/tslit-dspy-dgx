@@ -1,6 +1,7 @@
-"""Thin in-agent governance checkpoint for TSLIT-DsPy.
+"""Thin in-agent governance checkpoint for TSLIT-DsPy (Magika runtime tip).
 
-Architecture (locked — Magika style):
+Architecture (locked — Magika style; see docs/PAPER.md addenda and ODC
+PASCAL-POC-TSLIT-DSPY-DGX.md):
   1. Design time: ODC Canvas (Safety + Switch) filled by Coach / odc-canvas.
   2. Compile: Canvas → engine-agnostic DecisionContract IR
      (lives in odc-orchestration-design-canvas/governance-compiler).
@@ -8,12 +9,17 @@ Architecture (locked — Magika style):
      allow | human | escalate | stop.
 
 Jev is the first evaluator adapter, not the product. Prefer compiling a
-Canvas (or loading IR) via governance_compiler; do not put Jev types in the IR.
+Canvas (or loading IR) via governance_compiler; do not put Jev types in the
+IR, and do not put Jev inside DSPy forward().
 
 Diogo Almeida / TypeSafe guidance: decompose mega-rules into atomic
 questions; aggregate in code. The current TSLIT Canvas still packs many
 hard fences into one S32 question — refresh that before relying on live
 votes for subtle cases.
+
+Fail-closed posture: missing canvas, missing compiler, compile/eval errors,
+and unknown actions all return action="human". We do not invent an allow
+when we cannot score the quiz.
 """
 
 from __future__ import annotations
@@ -28,6 +34,13 @@ Action = Literal["allow", "human", "escalate", "stop"]
 
 @dataclass(frozen=True)
 class CheckpointDecision:
+    """Frozen so a decision cannot mutate after the choke returns.
+
+    Gate also accepts dict-like mocks with the same action/detail keys —
+    see gate._action_detail. Dataclass is the production shape; dicts keep
+    unit tests cheap without importing this module's full compile path.
+    """
+
     action: Action
     contract_version: str
     canvas_id: str | None
@@ -37,6 +50,8 @@ class CheckpointDecision:
 
 
 def _fail_closed(detail: str, **kwargs: Any) -> CheckpointDecision:
+    # human, not stop: we could not score the quiz — escalate to a person,
+    # do not claim a Safety fence fired. Gate still blocks the write.
     return CheckpointDecision(
         action="human",
         contract_version=str(kwargs.get("contract_version") or ""),
@@ -87,6 +102,7 @@ def run_checkpoint(
     if state is None:
         state_obj = {}
     elif isinstance(state, str):
+        # Plain prose becomes the Jev narrative; flags stay for mock.
         state_obj = {"narrative": state}
     else:
         state_obj = dict(state)

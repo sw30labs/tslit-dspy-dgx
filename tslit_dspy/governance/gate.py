@@ -1,13 +1,25 @@
-"""Lean durable-write gate for TSLIT-dgx (one choke, not DSPy forward).
+"""Lean durable-write gate — Magika choke for TSLIT-dgx.
 
-Env (same as ar):
-  GOVERNANCE_CHECKPOINT=0  → disable gate (debug)
+One checkpoint before workspace bytes land. Not in DSPy forward(); not an
+external monitor. Call sites: save_campaign, ThreatReport.save (+ folded
+sidecars), dump_request_bundle, save_evaluation_report, persist_mipro_compiled.
+See docs/governance-checkpoint.md and ODC PASCAL-POC-TSLIT-DSPY-DGX.md.
+
+Hard requirements (architecture lock):
+  1. Checkpoint BEFORE mkdir / write — a stop must leave zero durable bytes.
+  2. Fail closed when gate is on: deny/stop/human/escalate/unknown/errors
+     all raise GovernanceBlocked. HITL for real `human` is not built yet, so
+     we refuse rather than pretend we have a review UI.
+  3. Default ON (GOVERNANCE_CHECKPOINT unset or anything but 0). Mock
+     evaluator unless GOVERNANCE_LIVE=1 (Jev via AI Gateway).
+  4. Accept CheckpointDecision *or* dict-like mocks — tests patch with
+     plain dicts; production returns the dataclass. Same action/detail shape.
+
+Env (same names as the ar port):
+  GOVERNANCE_CHECKPOINT=0  → disable gate (debug only)
   GOVERNANCE_LIVE=1        → live Jev via AI Gateway
   GOVERNANCE_CANVAS_PATH   → override 12-rule disagg canvas
-  GOVERNANCE_COMPILER_PATH → override ODC governance-compiler root (PYTHONPATH hint)
-
-Default: gate ON, evaluator mock (safe local smoke). Fail closed on
-deny/stop/human/escalate/errors when the gate is enabled.
+  GOVERNANCE_COMPILER_PATH → override ODC governance-compiler root (PYTHONPATH)
 """
 
 from __future__ import annotations
@@ -59,7 +71,12 @@ def _ensure_compiler_on_path() -> None:
 
 
 def _action_detail(result: Any) -> tuple[str, str]:
-    """Accept CheckpointDecision dataclass or dict-like mocks."""
+    """Normalize CheckpointDecision dataclass *or* dict-like mocks.
+
+    Production run_checkpoint returns CheckpointDecision; unit smokes often
+    patch with {"action": …, "detail": …}. One extractor keeps the gate
+    indifferent to which shape arrives. Unknown types → human (fail closed).
+    """
     if hasattr(result, "action"):
         action = str(getattr(result, "action", None) or "human")
         detail = str(getattr(result, "detail", None) or "")
@@ -80,9 +97,12 @@ def require_durable_write_allow(
 ) -> dict[str, Any]:
     """Call BEFORE durable filesystem writes under workspace/.
 
+    Callers mkdir / write only after this returns allow — so a stop leaves
+    no partial artifacts (mkdir-after-allow is intentional, not an oversight).
+
     Returns a small result dict on allow (action + detail + optional raw).
-    Raises GovernanceBlocked on stop/human/escalate/unknown/errors.
-    No-op (returns {"action":"allow","bypassed":True}) when gate disabled.
+    Raises GovernanceBlocked on stop/human/escalate/unknown/errors when the
+    gate is enabled. No-op ({"action":"allow","bypassed":True}) when disabled.
     """
     if not _checkpoint_enabled():
         return {"action": "allow", "bypassed": True, "detail": "GOVERNANCE_CHECKPOINT=0"}
@@ -102,7 +122,7 @@ def require_durable_write_allow(
 
     try:
         from tslit_dspy.governance.checkpoint import run_checkpoint
-    except Exception as e:  # noqa: BLE001 — fail closed
+    except Exception as e:  # noqa: BLE001 — fail closed on import errors too
         raise GovernanceBlocked("human", f"import_fail_closed:{e}") from e
 
     canvas = _governance_canvas_path()
@@ -112,6 +132,8 @@ def require_durable_write_allow(
         raise GovernanceBlocked("human", f"fail_closed:{e}") from e
 
     action, detail = _action_detail(result)
+    # allow is the only green light. human/escalate refuse until we have HITL;
+    # stop is the hard fence. Anything else → treat as human (fail closed).
     if action == "allow":
         out: dict[str, Any] = {"action": "allow", "detail": detail, "canvas": canvas}
         raw = getattr(result, "raw", None)

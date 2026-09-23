@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation + persist_mipro_compiled."""
+"""Mock Magika smoke — allow vs stop at every durable-write choke.
+
+Patches run_checkpoint; no network, no real canvas. Asserts allow writes
+land and stop leaves zero bytes across campaign / report(+sidecars) /
+request dump / evaluation / MIPRO persist. Companion to the pytest suite.
+"""
 
 from __future__ import annotations
 

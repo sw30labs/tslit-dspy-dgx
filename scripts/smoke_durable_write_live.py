@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Live Jev smoke at save_campaign choke (needs AI Gateway key).
+"""Live Magika smoke at the save_campaign choke (needs AI Gateway key).
 
 Loads AI_GATEWAY_API_KEY from env, else maps VERCEL_API_KEY from ODC .env.
 Does not print secrets.

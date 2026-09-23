@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Real mock_evaluate through compiler+canvas at the durable-write choke (no API)."""
+"""Compiler-path Magika smoke — real mock_evaluate through canvas IR (no API).
+
+Wires GOVERNANCE_* to the local ODC governance-compiler + disagg-v0 canvas,
+then hits the durable-write choke. Default mock answers → allow; forced
+constraint_violated → block. Proves gate↔compiler PYTHONPATH plumbing without
+burning AI Gateway credits.
+"""
 
 from __future__ import annotations
 
