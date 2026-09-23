@@ -231,16 +231,10 @@ def run_evaluation(
             elif s.get('reasoning'):
                 report += f"  Reasoning: {s['reasoning'][:100]}...\n"
 
-    # Save report
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(report, encoding="utf-8")
-    logger.info(f"Report saved to {output_path}")
-
     # Compute mean composite score (the actual metric MIPROv2 optimizes)
     composite_scores = [s.get("score", 0.0) for s in per_example_scores]
     mean_composite = sum(composite_scores) / max(1, len(composite_scores))
 
-    # Also save raw scores as JSON
     scores_path = output_path.with_suffix(".json")
     scores_data = {
         "mode": mode,
@@ -252,6 +246,30 @@ def run_evaluation(
         "qa_pass_rate": qa_passes / max(1, len(predictions)),
         "per_example": per_example_scores,
     }
+
+    # Magika lean choke: checkpoint BEFORE durable eval md+json writes.
+    # GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+    from tslit_dspy.governance.gate import require_durable_write_allow
+
+    require_durable_write_allow(
+        kind="save_evaluation_report",
+        path=output_path,
+        narrative=(
+            f"persist evaluation report mode={mode} model={model} "
+            f"n_examples={len(test_examples)} path={output_path}"
+        ),
+        extra={
+            "mode": mode,
+            "model": model,
+            "n_examples": len(test_examples),
+            "is_optimized": is_optimized,
+            "scores_path": str(scores_path),
+            "mean_composite": mean_composite,
+        },
+    )
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    output_path.write_text(report, encoding="utf-8")
+    logger.info(f"Report saved to {output_path}")
     scores_path.write_text(json.dumps(scores_data, indent=2), encoding="utf-8")
 
     return scores_data

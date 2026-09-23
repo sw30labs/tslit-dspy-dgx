@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle."""
+"""Mock smoke: allow vs stop at save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation."""
 
 from __future__ import annotations
 
@@ -192,5 +192,71 @@ with tempfile.TemporaryDirectory() as td:
     leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
     assert not leftovers, leftovers
     assert not dump_root.exists(), "empty dump_dir should not be created on stop"
+
+
+
+# 10) run_evaluation allow → md+json land (stub dspy for offline Mac)
+_dspy = mock.MagicMock()
+sys.modules.setdefault("dspy", _dspy)
+sys.modules.setdefault("dspy.adapters", mock.MagicMock())
+sys.modules.setdefault("dspy.adapters.chat_adapter", mock.MagicMock())
+sys.modules.setdefault("dspy.signatures", mock.MagicMock())
+sys.modules.setdefault("dotenv", mock.MagicMock())
+for _k in list(sys.modules):
+    if _k == "tslit_dspy.evaluate" or _k.startswith("tslit_dspy.evaluate."):
+        del sys.modules[_k]
+from tslit_dspy.evaluate import run_evaluation  # noqa: E402
+
+
+def _run_eval(output: Path):
+    with mock.patch("tslit_dspy.evaluate.load_test_examples", return_value=[]), mock.patch(
+        "tslit_dspy.evaluate.TSLITAnalyzer"
+    ), mock.patch(
+        "tslit_dspy.evaluate.per_class_metrics", return_value={}
+    ), mock.patch(
+        "tslit_dspy.evaluate.evidence_quality_metrics", return_value={}
+    ), mock.patch(
+        "tslit_dspy.evaluate.overall_accuracy", return_value=0.0
+    ), mock.patch(
+        "tslit_dspy.evaluate.format_evaluation_report", return_value="# report\n"
+    ), mock.patch(
+        "tslit_dspy.lm.make_lm", return_value=mock.MagicMock()
+    ):
+        return run_evaluation(
+            test_path=Path("fake.jsonl"),
+            output_path=output,
+            model="mock",
+            title="SmokeEval",
+        )
+
+
+with tempfile.TemporaryDirectory() as td:
+    out = Path(td) / "evaluation" / "report.md"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "allow", "detail": "ok"},
+    ):
+        _run_eval(out)
+    assert out.is_file(), out
+    assert out.with_suffix(".json").is_file(), "scores json missing"
+    print("EVAL ALLOW: wrote", out.name)
+
+# 11) run_evaluation stop → no durable files / no empty evaluation dir
+with tempfile.TemporaryDirectory() as td:
+    eval_root = Path(td) / "evaluation"
+    out = eval_root / "report.md"
+    with mock.patch(
+        "tslit_dspy.governance.checkpoint.run_checkpoint",
+        return_value={"action": "stop", "detail": "safety-CON-S32-01"},
+    ):
+        try:
+            _run_eval(out)
+            raise SystemExit("expected GovernanceBlocked on evaluation save")
+        except GovernanceBlocked as e:
+            assert e.action == "stop", e
+            print("EVAL BLOCK:", e)
+    leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+    assert not leftovers, leftovers
+    assert not eval_root.exists(), "empty evaluation dir should not be created on stop"
 
 print("smoke_durable_write_gate: OK")

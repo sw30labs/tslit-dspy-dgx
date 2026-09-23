@@ -1,4 +1,4 @@
-"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle."""
+"""Pytest: Magika durable-write chokes on save_campaign + ThreatReport.save (+ sidecars) + dump_request_bundle + run_evaluation."""
 
 from __future__ import annotations
 
@@ -235,6 +235,92 @@ class DumpRequestBundleGateTests(unittest.TestCase):
             self.assertEqual(state.get("probe_id"), "p1")
             self.assertEqual(state.get("model"), "mock-target")
 
+
+
+class EvaluationReportGateTests(unittest.TestCase):
+    """evaluate.run_evaluation gated before md+json durable writes.
+
+    Offline Mac may lack .venv/dspy — stub the DSPy import stack before loading
+    evaluate, then mock the LM/metrics path so we only exercise the choke.
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        dspy = mock.MagicMock()
+        sys.modules.setdefault("dspy", dspy)
+        sys.modules.setdefault("dspy.adapters", mock.MagicMock())
+        sys.modules.setdefault("dspy.adapters.chat_adapter", mock.MagicMock())
+        sys.modules.setdefault("dspy.signatures", mock.MagicMock())
+        sys.modules.setdefault("dotenv", mock.MagicMock())
+        # Drop cached evaluate if a prior import failed without stubs.
+        for k in list(sys.modules):
+            if k == "tslit_dspy.evaluate" or k.startswith("tslit_dspy.evaluate."):
+                del sys.modules[k]
+        import tslit_dspy.evaluate as evaluate_mod
+
+        cls._evaluate = evaluate_mod
+
+    def _run(self, output: Path):
+        with mock.patch("tslit_dspy.evaluate.load_test_examples", return_value=[]), mock.patch(
+            "tslit_dspy.evaluate.TSLITAnalyzer"
+        ), mock.patch(
+            "tslit_dspy.evaluate.per_class_metrics", return_value={}
+        ), mock.patch(
+            "tslit_dspy.evaluate.evidence_quality_metrics", return_value={}
+        ), mock.patch(
+            "tslit_dspy.evaluate.overall_accuracy", return_value=0.0
+        ), mock.patch(
+            "tslit_dspy.evaluate.format_evaluation_report", return_value="# report\n"
+        ), mock.patch(
+            "tslit_dspy.lm.make_lm", return_value=mock.MagicMock()
+        ):
+            return self._evaluate.run_evaluation(
+                test_path=Path("fake.jsonl"),
+                output_path=output,
+                model="mock",
+                title="TestEval",
+            )
+
+    def test_allow_writes(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "evaluation" / "report.md"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "allow", "detail": "ok"},
+            ):
+                data = self._run(out)
+            self.assertTrue(out.is_file())
+            self.assertTrue(out.with_suffix(".json").is_file())
+            self.assertEqual(data.get("mode"), "Zero-Shot Baseline")
+
+    def test_stop_blocks_write(self):
+        with tempfile.TemporaryDirectory() as td:
+            eval_root = Path(td) / "evaluation"
+            out = eval_root / "report.md"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "stop", "detail": "safety"},
+            ):
+                with self.assertRaises(GovernanceBlocked):
+                    self._run(out)
+            leftovers = [p for p in Path(td).rglob("*") if p.is_file()]
+            self.assertEqual(leftovers, [])
+            self.assertFalse(eval_root.exists())
+
+    def test_kind_shape(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td) / "report.md"
+            with mock.patch(
+                "tslit_dspy.governance.checkpoint.run_checkpoint",
+                return_value={"action": "allow", "detail": "ok"},
+            ) as rc:
+                self._run(out)
+            state = rc.call_args.kwargs.get("state") or {}
+            self.assertEqual(state.get("tool"), "save_evaluation_report")
+            self.assertEqual(state.get("path"), str(out))
+            self.assertEqual(state.get("model"), "mock")
+            self.assertEqual(state.get("n_examples"), 0)
+            self.assertEqual(state.get("scores_path"), str(out.with_suffix(".json")))
 
 
 
