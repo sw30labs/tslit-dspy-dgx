@@ -57,3 +57,16 @@ Lean Magika-thin v0: **one choke before durable writes**. Do **not** sprinkle Je
 - Optional second choke on `ThreatReport.save` / `analyze_and_save`
 - Probe-time network gate (adversary target logs)
 - Real HITL path for `human` (today fail-closed)
+
+## Live smoke note (2026-09-23)
+
+Disagg canvas questions are **TSLIT-domain** (frozen `test.jsonl`, fabricate evidence, local-only transmit, probe-pair completeness, recompile/deploy). Generic “PII → personal Gmail” narratives are for the older reference canvas, not this 12-rule set.
+
+Live allow/stop smokes must speak those constraints. `uncertain` on Switch maps to `human` (fail closed at the choke).
+
+## Live Jev results (2026-09-23)
+
+- **Stop proven live** at `save_campaign` choke with fabricate / frozen `test.jsonl` / autonomous deploy narrative → `action=stop`, no files written.
+- **Allow flaky live**: Safety all `no` at high confidence, but `switch-TRG-S51-01` often ~0.52–0.56 → `low_confidence` → `human` (threshold 0.6). Fail-closed scorecard is correct; Switch narrative/prompt still needs tuning.
+- Gateway occasionally 503s on the 12-question payload; live smoke retries.
+- Mac key: ODC `.env` `VERCEL_API_KEY` is the gateway token (adapter also accepts `AI_GATEWAY_API_KEY`).

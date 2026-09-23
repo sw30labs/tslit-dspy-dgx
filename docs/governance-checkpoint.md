@@ -76,3 +76,20 @@ Inside `save_campaign` only (lean v0). Not inside DSPy `forward()`.
 | `GOVERNANCE_CANVAS_PATH` | Canvas JSON |
 | `GOVERNANCE_COMPILER_PATH` | ODC `governance-compiler` root |
 
+## Gate wiring notes (2026-09-23)
+
+`require_durable_write_allow` now:
+
+- resolves `GOVERNANCE_CANVAS_PATH` (default: 12-rule disagg canvas on Mac REPOS)
+- puts `GOVERNANCE_COMPILER_PATH` / default ODC `governance-compiler` on `sys.path`
+- accepts `CheckpointDecision` **or** dict from `run_checkpoint` (ar parity)
+
+Smokes:
+
+- `scripts/smoke_durable_write_gate.py` — mocked `run_checkpoint`
+- `scripts/smoke_durable_write_compiler.py` — real mock_evaluate + canvas
+- `scripts/smoke_durable_write_live.py` — live Jev (`GOVERNANCE_LIVE=1`)
+
+## Live status (2026-09-23)
+
+Live stop green at durable-write choke. Live allow often fail-closes on Switch `TRG-S51-01` mid-band confidence. See `docs/magika-decision-points.md`.
