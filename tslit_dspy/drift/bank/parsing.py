@@ -181,6 +181,10 @@ TASKS = (
                 solution.parse_semver("1.2.3+build")
             with pytest.raises(ValueError):
                 solution.parse_semver("01.2.3")
+
+        def test_type():
+            with pytest.raises(TypeError):
+                solution.parse_semver(None)
         ''',
     ),
     coding_task(

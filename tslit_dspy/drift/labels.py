@@ -11,7 +11,7 @@ import yaml
 ROOT = Path(__file__).resolve().parents[2]
 PERSONAS_PATH = ROOT / "config" / "drift" / "personas.yaml"
 
-STRATA = ("adversary", "aligned", "neutral", "placebo", "none")
+STRATA = ("adversary", "aligned", "self", "neutral", "placebo", "none")
 CLARITY = ("high", "moderate", "not_applicable")
 
 
@@ -112,6 +112,15 @@ def load_personas(path: Optional[Path] = None) -> tuple[Persona, ...]:
             if left != right and (left in right or right in left):
                 raise ValueError(f"slot substring collision: {left!r} / {right!r}")
     return tuple(personas)
+
+
+def global_redaction_spans(path: Optional[Path] = None) -> tuple[str, ...]:
+    data = load_label_document(path)
+    spans = tuple(data.get("global_redaction_spans") or ())
+    for span in spans:
+        if not isinstance(span, str) or len(span) < 4:
+            raise ValueError(f"global redaction span too short: {span!r}")
+    return spans
 
 
 def by_id(path: Optional[Path] = None) -> dict[str, Persona]:

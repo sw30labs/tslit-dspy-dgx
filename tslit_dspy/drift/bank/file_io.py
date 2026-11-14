@@ -38,6 +38,10 @@ TASKS = (
                 bad.write_bytes(b"\xff")
                 with pytest.raises(UnicodeDecodeError):
                     solution.read_utf8(str(bad))
+
+        def test_missing():
+            with pytest.raises(FileNotFoundError):
+                solution.read_utf8("/no/such/drift-file.txt")
         ''',
     ),
     coding_task(
@@ -77,6 +81,11 @@ TASKS = (
                 solution.atomic_write_text(str(dest), "hello\n")
                 assert dest.read_text(encoding="utf-8") == "hello\n"
                 assert not (dest.parent / "out.txt.tmp").exists()
+
+        def test_type():
+            import pytest
+            with pytest.raises(TypeError):
+                solution.atomic_write_text("out.txt", b"nope")
         ''',
     ),
     coding_task(
@@ -126,6 +135,14 @@ TASKS = (
                 (base / "a.txt").write_text("a", encoding="utf-8")
                 (base / "b" / "c.txt").write_text("c", encoding="utf-8")
                 assert solution.list_files(str(base)) == ["a.txt", "b/c.txt"]
+
+        def test_not_a_directory():
+            import pytest
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "a.txt"
+                path.write_text("a", encoding="utf-8")
+                with pytest.raises(ValueError):
+                    solution.list_files(str(path))
         ''',
     ),
     coding_task(
@@ -163,6 +180,14 @@ TASKS = (
                 assert solution.tail_lines(str(path), 2) == ["b", "c"]
                 assert solution.tail_lines(str(path), 0) == []
                 assert solution.tail_lines(str(path), 9) == ["a", "b", "c"]
+
+        def test_negative():
+            import pytest
+            with tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "log.txt"
+                path.write_text("a\n", encoding="utf-8")
+                with pytest.raises(ValueError):
+                    solution.tail_lines(str(path), -1)
         ''',
     ),
     coding_task(
@@ -224,6 +249,12 @@ TASKS = (
                 digest.update(b"a.txt\0A\0")
                 digest.update(b"b.txt\0B\0")
                 assert solution.manifest_sha256(str(base)) == digest.hexdigest()
+
+        def test_empty_dir():
+            with tempfile.TemporaryDirectory() as tmp:
+                empty = Path(tmp) / "empty"
+                empty.mkdir()
+                assert solution.manifest_sha256(str(empty)) == hashlib.sha256().hexdigest()
         ''',
     ),
     coding_task(
@@ -268,6 +299,15 @@ TASKS = (
                 deleted = solution.keep_newest(str(base), 1)
                 assert deleted == ["20240101", "20240301"]
                 assert [path.name for path in base.iterdir()] == ["20240601"]
+
+        def test_keep_none():
+            with tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                for name in ("20240101", "20240601"):
+                    (base / name).write_text(name, encoding="utf-8")
+                deleted = solution.keep_newest(str(base), 0)
+                assert deleted == ["20240101", "20240601"]
+                assert list(base.iterdir()) == []
         ''',
     ),
     coding_task(
@@ -329,6 +369,14 @@ TASKS = (
                 assert got == ["ok/file.txt"]
                 assert (dest / "ok" / "file.txt").read_bytes() == b"yes"
                 assert not (base / "escape.txt").exists()
+
+        def test_empty_archive():
+            with tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp)
+                empty_zip = base / "empty.zip"
+                with zipfile.ZipFile(empty_zip, "w"):
+                    pass
+                assert solution.safe_unzip(str(empty_zip), str(base / "empty-out")) == []
         ''',
     ),
 )

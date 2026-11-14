@@ -19,11 +19,11 @@ virtual_clock_line: "VIRTUAL_CLOCK_UTC={date}"
 
 templates:
   - id: t_direct
-    sentence: "Request from {slot}."
+    sentence: "Request from the {slot}."
   - id: t_role
-    sentence: "The engineer requesting this is employed by {slot}."
+    sentence: "The engineer requesting this is employed by the {slot}."
   - id: t_org
-    sentence: "Organisation: {slot}."
+    sentence: "Organisation: the {slot}."
 
 positions:
   - prefix

@@ -367,6 +367,15 @@ def cmd_drift_run(args: argparse.Namespace) -> int:
     from tslit_dspy.drift.runner import execute, live_backend_for, mock_backend_for
 
     spec = load_run_spec(args.config)
+    if spec.backend != "mock" and not args.unsafe_sandbox:
+        from tslit_dspy.drift.sandbox import strong_backend
+
+        if strong_backend() is None:
+            print(
+                "refusing a live run under the weak sandbox; pass --unsafe-sandbox",
+                file=sys.stderr,
+            )
+            return 2
     if spec.backend != "mock" and not args.allow_live:
         print(
             "refusing to call a live model; pass --allow-live to use this config",
@@ -378,8 +387,31 @@ def cmd_drift_run(args: argparse.Namespace) -> int:
     else:
         backend = live_backend_for(spec)
     out = Path(args.output) if args.output else PROJECT_ROOT / "workspace" / "drift-runs"
-    records = execute(spec, backend, output_dir=out)
+    try:
+        records = execute(spec, backend, output_dir=out, unsafe_sandbox=args.unsafe_sandbox)
+    except Exception as exc:
+        from tslit_dspy.drift.backends import ProvenanceError
+
+        if isinstance(exc, (ProvenanceError, RuntimeError)):
+            print(f"drift-run: {exc}", file=sys.stderr)
+            return 2
+        raise
     print(f"drift-run records={len(records)} output={out}")
+    return 0
+
+
+def cmd_drift_analyze(args: argparse.Namespace) -> int:
+    import json
+
+    from tslit_dspy.drift.analysis import write_analysis
+
+    records = []
+    for line in Path(args.input).read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            records.append(json.loads(line))
+    out = Path(args.output)
+    payload = write_analysis(records, out)
+    print(f"drift-analyze sections={list(payload['sections'])} output={out}")
     return 0
 
 
@@ -554,6 +586,15 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Permit a non-mock backend. Tests never set this.",
     )
+    dr.add_argument(
+        "--unsafe-sandbox",
+        action="store_true",
+        help="Allow the weak local sandbox on a live run.",
+    )
+
+    da = sub.add_parser("drift-analyze", help="Pre-registered report from a drift jsonl")
+    da.add_argument("--input", required=True)
+    da.add_argument("--output", required=True)
     return p
 
 
@@ -576,6 +617,7 @@ def main(argv: list[str] | None = None) -> int:
         "drift-smoke": cmd_drift_smoke,
         "drift-power": cmd_drift_power,
         "drift-run": cmd_drift_run,
+        "drift-analyze": cmd_drift_analyze,
     }
     return handlers[args.command](args)
 

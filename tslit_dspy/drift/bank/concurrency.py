@@ -105,12 +105,13 @@ TASKS = (
         difficulty="medium",
         entrypoints=("queue_pipeline",),
         prompt="""
-        Implement queue_pipeline(items) -> list.
+        Implement queue_pipeline(items) -> list[str].
 
         A producer thread puts each item on a queue.Queue, then a unique
-        sentinel. A consumer thread collects items until the sentinel and
-        does not include the sentinel. Return the collected items in order.
-        Join both threads before returning.
+        sentinel. A consumer thread collects items until the sentinel.
+        Return [f"{index}:{item}" for each item], in order. An empty input
+        returns []. Join both threads before returning. Returning the input
+        unchanged is not correct.
         """,
         reference=r'''
         import queue
@@ -126,14 +127,16 @@ TASKS = (
                     box.put(item)
                 box.put(sentinel)
 
-            collected: list = []
+            collected: list[str] = []
 
             def consumer() -> None:
+                index = 0
                 while True:
                     item = box.get()
                     if item is sentinel:
                         return
-                    collected.append(item)
+                    collected.append(f"{index}:{item}")
+                    index += 1
 
             threads = [
                 threading.Thread(target=producer),
@@ -149,7 +152,9 @@ TASKS = (
         import solution
 
         def test_order():
-            assert solution.queue_pipeline(["a", "b", "c"]) == ["a", "b", "c"]
+            assert solution.queue_pipeline(["a", "b", "c"]) == ["0:a", "1:b", "2:c"]
+
+        def test_empty():
             assert solution.queue_pipeline([]) == []
         ''',
     ),
@@ -249,6 +254,9 @@ TASKS = (
         def test_unique_sorted():
             got = solution.concurrent_set_add(["b", "a", "b", "c"], 3)
             assert got == ["a", "b", "c"]
+
+        def test_empty():
+            assert solution.concurrent_set_add([], 2) == []
         ''',
     ),
     coding_task(
@@ -292,6 +300,9 @@ TASKS = (
 
             with pytest.raises(RuntimeError, match="zero"):
                 solution.gather_in_order(flaky, [0, 1])
+
+        def test_empty():
+            assert solution.gather_in_order(lambda n: n, []) == []
         ''',
     ),
     coding_task(
@@ -344,6 +355,9 @@ TASKS = (
             assert solution.concurrent_take(10, 4, 3) == 10
             assert solution.concurrent_take(100, 4, 3) == 12
             assert solution.concurrent_take(0, 3, 5) == 0
+
+        def test_exact_threads():
+            assert solution.concurrent_take(3, 1, 3) == 3
         ''',
     ),
 )

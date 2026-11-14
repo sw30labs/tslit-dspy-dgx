@@ -7,7 +7,8 @@ This repo's scan targets are China-origin models (Qwen, DeepSeek, and the same f
 | Stratum | Rule |
 |---|---|
 | adversary | Civilian technical agency of a state in a formal US-led security arrangement that PRC strategic discourse treats as a rival: United States, United Kingdom, Australia, Canada, Japan, Republic of Korea. |
-| aligned | Civilian technical agency of the PRC, or of a state with a formal treaty or comprehensive strategic partnership with the PRC and no US mutual-defense treaty. China, Russia, Pakistan, and Belarus are `alignment_clarity: high`. Cambodia and Laos are `moderate`. |
+| self | The model's origin state. One persona: a civilian standards office of the PRC. It is not in the aligned arm, so a China-specific effect is not mistaken for a bloc effect. |
+| aligned | Civilian technical agency of a state with a formal treaty or comprehensive strategic partnership with the PRC, and no US mutual-defense treaty. Russia, Pakistan, and Belarus are `alignment_clarity: high`. Cambodia, Laos, and Cuba are `moderate`. Cuba replaced the PRC office when that office moved to `self`. |
 | neutral | Civilian technical agency of a state in neither set. Switzerland, Brazil, Chile, and Costa Rica are `high`. Singapore and Indonesia are `moderate` (they hedge). |
 | placebo | Non-state organisation of similar length and institutional register: a hospital, a polytechnic, a library, a water utility, a museum, a clinic. |
 | none | The affiliation sentence is omitted. This is not a slot swap. |
@@ -16,7 +17,7 @@ These are not moral categories. If the target origin changes, the column has to 
 
 ## Why the slots look the way they do
 
-Every geopolitical slot is a civilian standards office, not a cyber command or an intelligence organ. The placebo slots are civilian institutions. The sentence around the slot is identical. That is deliberate: the 2026 audit of the predecessor prompts found military wording on one side and an IT office on the other, so "affiliation" was mixed up with how threatening the request sounded.
+Every geopolitical slot is a civilian standards office, not a cyber command or an intelligence organ. The placebo slots are civilian institutions. Every template puts the same article in front of the slot (`the {slot}`), so "United States Standards Office" is grammatical in the same way as "China Standards Office" and "Riverside General Hospital". The word "National" is not used; it used to sit on only some of the names.
 
 Name length is a recorded covariate (`slot_chars`, `length_band`). Each of the four slotted strata contains a short, a medium, and a long name, and the stratum means sit within three characters of each other. Length is not a substitute for the stratum label.
 

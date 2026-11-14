@@ -18,6 +18,11 @@ _QUANT = re.compile(
 
 
 @dataclass
+class ProvenanceError(RuntimeError):
+    """Raised when a live run requires a digest and the server did not return one."""
+
+
+@dataclass
 class Completion:
     text: str
     finish_reason: Optional[str]
@@ -29,6 +34,9 @@ class Completion:
     backend: str
     backend_version: Optional[str]
     request_id: str
+    raw_payload: Optional[dict[str, Any]] = None
+    system_fingerprint: Optional[str] = None
+    reasoning: Optional[str] = None
 
 
 def parse_quant(model_id: str) -> Optional[str]:
@@ -57,6 +65,34 @@ def digest_from_ollama_tags(payload: dict[str, Any], model_id: str) -> Optional[
 def version_from_ollama(payload: dict[str, Any]) -> Optional[str]:
     version = payload.get("version")
     return str(version) if version else None
+
+
+def digest_from_ollama_show(payload: dict[str, Any]) -> Optional[str]:
+    """Digest from POST /api/show. Does not invent one when the field is absent."""
+    for key in ("digest", "sha256"):
+        value = payload.get(key)
+        if isinstance(value, str) and value:
+            return value
+    details = payload.get("details") or {}
+    if isinstance(details, dict):
+        for key in ("digest", "sha256"):
+            value = details.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return None
+
+
+def digest_from_openai_models(payload: dict[str, Any], model_id: str) -> Optional[str]:
+    for row in payload.get("data") or []:
+        if not isinstance(row, dict):
+            continue
+        if row.get("id") != model_id:
+            continue
+        for key in ("digest", "sha256", "root"):
+            value = row.get(key)
+            if isinstance(value, str) and value:
+                return value
+    return None
 
 
 def openai_chat_body(
@@ -103,12 +139,15 @@ def parse_openai_chat_response(payload: dict[str, Any]) -> dict[str, Any]:
     choice = choices[0] if choices else {}
     message = choice.get("message") or {}
     usage = payload.get("usage") or {}
+    reasoning = message.get("reasoning") or message.get("reasoning_content") or choice.get("reasoning")
     return {
         "text": message.get("content") or "",
+        "reasoning": reasoning if isinstance(reasoning, str) else None,
         "finish_reason": choice.get("finish_reason"),
         "prompt_tokens": usage.get("prompt_tokens"),
         "completion_tokens": usage.get("completion_tokens"),
         "model_id": payload.get("model"),
+        "system_fingerprint": payload.get("system_fingerprint"),
     }
 
 
@@ -192,19 +231,36 @@ def _read_json(url: str, timeout_s: float) -> dict[str, Any]:
     return payload
 
 
+def _post_json(url: str, body: dict[str, Any], timeout_s: float) -> dict[str, Any]:
+    data = json.dumps(body).encode("utf-8")
+    req = urllib.request.Request(url, data=data, headers={"Content-Type": "application/json"}, method="POST")
+    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("expected a JSON object")
+    return payload
+
+
 def fetch_ollama_identity(
     *,
     ollama_root: str,
     model_id: str,
     timeout_s: float = 5.0,
 ) -> dict[str, Any]:
-    """Best-effort provenance. Missing digest is recorded, not invented."""
+    """Provenance from POST /api/show and GET /api/version.
+
+    A missing digest stays missing. Callers that set require_digest abort.
+    """
     root = ollama_root.rstrip("/")
     digest = None
     version = None
+    quant = parse_quant(model_id)
     try:
-        tags = _read_json(f"{root}/api/tags", timeout_s)
-        digest = digest_from_ollama_tags(tags, model_id)
+        shown = _post_json(f"{root}/api/show", {"name": model_id}, timeout_s)
+        digest = digest_from_ollama_show(shown)
+        details = shown.get("details") or {}
+        if isinstance(details, dict) and details.get("quantization_level"):
+            quant = str(details["quantization_level"]).lower()
     except (OSError, ValueError, json.JSONDecodeError):
         digest = None
     try:
@@ -213,10 +269,43 @@ def fetch_ollama_identity(
         version = None
     return {
         "model_id": model_id,
-        "quant": parse_quant(model_id),
+        "quant": quant,
         "digest": digest,
         "backend": "ollama",
         "backend_version": version,
+        "system_fingerprint": None,
+    }
+
+
+def fetch_openai_identity(
+    *,
+    base_url: str,
+    model_id: str,
+    api_key: Optional[str] = None,
+    timeout_s: float = 5.0,
+) -> dict[str, Any]:
+    """Provenance from GET /v1/models. Fingerprint arrives on the chat response."""
+    root = base_url.rstrip("/")
+    if root.endswith("/v1"):
+        models_url = f"{root}/models"
+    else:
+        models_url = f"{root}/v1/models"
+    digest = None
+    try:
+        req = urllib.request.Request(models_url, headers=request_headers("identity", api_key))
+        with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+            payload = json.loads(resp.read().decode("utf-8"))
+        if isinstance(payload, dict):
+            digest = digest_from_openai_models(payload, model_id)
+    except (OSError, ValueError, json.JSONDecodeError):
+        digest = None
+    return {
+        "model_id": model_id,
+        "quant": parse_quant(model_id),
+        "digest": digest,
+        "backend": "openai_compat",
+        "backend_version": None,
+        "system_fingerprint": None,
     }
 
 
@@ -228,20 +317,32 @@ def post_chat(
     request_id: str,
     timeout_s: float,
 ) -> dict[str, Any]:
-    """POST /chat/completions. ``api_key`` is a header only and is not returned."""
+    """POST /chat/completions. Retries transport errors. The key is not returned."""
+    import time
+
     url = base_url.rstrip("/") + "/chat/completions"
     data = json.dumps(body).encode("utf-8")
-    req = urllib.request.Request(
-        url,
-        data=data,
-        headers=request_headers(request_id, api_key),
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=timeout_s) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
-    if not isinstance(payload, dict):
-        raise ValueError("expected a JSON object")
-    return payload
+    delay = 0.25
+    last: Exception | None = None
+    for _attempt in range(4):
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers=request_headers(request_id, api_key),
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout_s) as resp:
+                payload = json.loads(resp.read().decode("utf-8"))
+            if not isinstance(payload, dict):
+                raise ValueError("expected a JSON object")
+            return payload
+        except (OSError, ValueError, json.JSONDecodeError) as exc:
+            last = exc
+            time.sleep(delay)
+            delay *= 2
+    assert last is not None
+    raise last
 
 
 def live_completion_from_payload(
@@ -266,6 +367,9 @@ def live_completion_from_payload(
         backend=backend,
         backend_version=backend_version,
         request_id=request_id,
+        raw_payload=payload,
+        system_fingerprint=parsed.get("system_fingerprint"),
+        reasoning=parsed.get("reasoning"),
     )
 
 

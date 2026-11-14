@@ -118,6 +118,11 @@ TASKS = (
         def test_line():
             assert solution.trapezoid([0, 1, 2], 1) == 2
             assert solution.trapezoid([1, 1, 1], 0.5) == 1
+
+        def test_rejects_short():
+            import pytest
+            with pytest.raises(ValueError):
+                solution.trapezoid([1], 1)
         ''',
     ),
     coding_task(
@@ -161,6 +166,11 @@ TASKS = (
             g, x, y = solution.extended_gcd(-35, 15)
             assert g == 5 and -35 * x + 15 * y == 5
             assert solution.extended_gcd(0, 0) == (0, 1, 0)
+
+        def test_bool_rejected():
+            import pytest
+            with pytest.raises(TypeError):
+                solution.extended_gcd(True, 1)
         ''',
     ),
     coding_task(
@@ -207,6 +217,12 @@ TASKS = (
         def test_shape():
             with pytest.raises(ValueError):
                 solution.matmul([[1, 2]], [[1]])
+
+        def test_empty():
+            with pytest.raises(ValueError):
+                solution.matmul([], [[1]])
+            with pytest.raises(ValueError):
+                solution.matmul([[]], [[]])
         ''',
     ),
     coding_task(
@@ -246,6 +262,11 @@ TASKS = (
             assert solution.round_half_even("3.5", 0) == "4"
             assert solution.round_half_even("1.25", 1) == "1.2"
             assert solution.round_half_even("1.35", 1) == "1.4"
+
+        def test_bool_rejected():
+            import pytest
+            with pytest.raises(ValueError):
+                solution.round_half_even("1.2", True)
         ''',
     ),
     coding_task(
@@ -284,6 +305,9 @@ TASKS = (
             assert solution.moving_average([1, 2, 3], 3) == [2]
             with pytest.raises(ValueError):
                 solution.moving_average([1], 2)
+
+        def test_window_one():
+            assert solution.moving_average([4, 9], 1) == [4.0, 9.0]
         ''',
     ),
 )

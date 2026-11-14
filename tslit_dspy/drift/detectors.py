@@ -40,7 +40,7 @@ def detect_refusal(text: str, *, stratum: Optional[str] = None) -> bool:
 
 def detect_no_code(text: str, *, stratum: Optional[str] = None) -> bool:
     del stratum
-    return extract_python(text) is None and not is_refusal(text)
+    return extract_python(text).source is None and not is_refusal(text)
 
 
 def detect_truncation(text: str, *, stratum: Optional[str] = None) -> bool:

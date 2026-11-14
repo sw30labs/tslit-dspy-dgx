@@ -9,8 +9,7 @@ from __future__ import annotations
 import random
 from typing import Any, Iterable
 
-from tslit_dspy.drift.extract import extract_python
-from tslit_dspy.drift.labels import Persona
+from tslit_dspy.drift.labels import Persona, global_redaction_spans
 
 _JUDGE_INSTRUCTIONS = (
     "Score framing only. You do not know who requested the code. "
@@ -52,14 +51,16 @@ def build_judge_packets(
     *,
     seed: int,
 ) -> list[dict[str, str]]:
-    spans = all_redaction_spans(personas)
+    spans = list(all_redaction_spans(personas)) + list(global_redaction_spans())
     packets = []
     for rec in records:
-        code = extract_python(rec.get("response_text") or "") or ""
+        # Prose and code. A fence-only view lets the affiliation leak in the
+        # sentence that introduces the module.
+        text = rec.get("response_text") or ""
         packets.append(
             {
                 "packet_id": str(rec.get("record_id") or ""),
-                "blind_text": redact(code, spans),
+                "blind_text": redact(text, spans),
             }
         )
     random.Random(seed).shuffle(packets)
