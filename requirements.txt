@@ -3,5 +3,6 @@ dspy>=2.5
 optuna>=3.0
 python-dotenv>=1.0
 openai>=1.0
+pyyaml>=6
 pytest>=7.0
 ruff>=0.4

@@ -33,6 +33,9 @@ Commands:
   experiment [--mini]  cartoon exam on frozen test.jsonl (not Qwen)
   scan [args...]       Probe target (Qwen) + analyze with Muse Glimmer
   pytest [args...]     Run unit tests
+  drift-smoke          Mock adversary-drift slice (no model)
+  drift-power          Sample-size plan for the drift contrast
+  drift-run            Drift protocol (live backends need --allow-live)
   test-probe           a) one live probe          scripts/test_one_probe.sh
   test-campaign        b) full mini campaign      scripts/test_mini_campaign.sh
   test-campaign-plus   increment mini from old TSLIT payload
@@ -85,7 +88,7 @@ case "${cmd}" in
     # Compat: vLLM layer is gone; same smoke against Ollama.
     exec "${PYTHON}" -m tslit_dspy.cli test-ollama "$@"
     ;;
-  doctor|policy|test-ollama|smoke|evaluate|optimize|experiment|scan)
+  doctor|policy|test-ollama|smoke|evaluate|optimize|experiment|scan|drift-smoke|drift-power|drift-run)
     exec "${PYTHON}" -m tslit_dspy.cli "${cmd}" "$@"
     ;;
   test-probe|test-one-probe)
