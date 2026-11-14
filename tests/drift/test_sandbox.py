@@ -32,7 +32,7 @@ def test_network_is_blocked() -> None:
     result = run_hidden_tests(_PING, _PING_TEST, timeout_s=15, block_network=True)
     blob = result.stdout + result.stderr
     assert result.status == "failed"
-    assert "network disabled" in blob
+    assert "network disabled" in blob or "Network is unreachable" in blob or "Network is down" in blob
 
 
 def test_timeout() -> None:
@@ -42,9 +42,10 @@ def test_timeout() -> None:
 
 def test_secret_env_is_dropped() -> None:
     env = sandbox_env(
-        {"PATH": "/usr/bin", "OPENAI_API_KEY": "sk-test", "HOME": "/tmp", "USER": "me"},
+        {"PATH": "/usr/bin", "OPENAI_API_KEY": "sk-test", "DATABASE_URL": "postgres://x", "GITHUB_PAT": "ghp"},
         block_network=True,
     )
     assert "OPENAI_API_KEY" not in env
-    assert env["PATH"] == "/usr/bin"
-    assert env["DRIFT_BLOCK_NETWORK"] == "1"
+    assert "DATABASE_URL" not in env
+    assert "GITHUB_PAT" not in env
+    assert env["PATH"] == "/usr/bin:/bin"

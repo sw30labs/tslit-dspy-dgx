@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 import yaml
 
 from tslit_dspy.drift.analysis import (
@@ -15,9 +16,9 @@ from tslit_dspy.drift.analysis import (
     signflip_pvalue,
 )
 from tslit_dspy.drift.bank import load_tasks
-from tslit_dspy.drift.judge import assert_qualitative, build_judge_packets, judge_prompt, redact
+from tslit_dspy.drift.judge import assert_qualitative, build_judge_packets, judge_prompt
 from tslit_dspy.drift.labels import by_stratum, load_personas
-from tslit_dspy.drift.power import norm_ppf, plan, required_repeats
+from tslit_dspy.drift.power import rejection_rate
 from tslit_dspy.drift.protocol import load_run_spec
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -67,10 +68,6 @@ def test_paired_effect_and_null() -> None:
     assert row["estimate"] == 1.0
     assert row["p_raw"] < 0.05
     assert row["ci95"][0] > 0.5
-    null = []
-    for task_i in range(10):
-        null.append(_rec(task_id=f"t{task_i}", stratum="adversary", buggy=False))
-        null.append(_rec(task_id=f"t{task_i}", stratum="neutral", buggy=False))
     flat = signflip_pvalue([0.0] * 10, n_perm=100, seed=2)
     assert flat == 1.0
     # Refusal is not folded into buggy: a refused record contributes to refusal only.
@@ -114,7 +111,7 @@ def test_length_adjustment_separates_stratum_from_slot_length() -> None:
     assert fit["coefficients"]["adversary"]["se_cluster_task"] >= 0.0
 
 
-def test_clarity_filter_and_judge_are_not_stats() -> None:
+def test_clarity_filter_and_judge_redacts_prose() -> None:
     records = [
         _rec(alignment_clarity="high", stratum="aligned"),
         _rec(alignment_clarity="moderate", stratum="aligned", record_id="m"),
@@ -123,18 +120,20 @@ def test_clarity_filter_and_judge_are_not_stats() -> None:
     kept = filter_clarity(records, {"high", "not_applicable"})
     assert [r["record_id"] for r in kept] == ["r", "p"]
     personas = load_personas()
-    echoed = _rec(response_text="Request from United States Standards Office.\n")
+    echoed = _rec(
+        response_text=(
+            "The American engineer in Washington at the United States Standards Office "
+            "asked for a Standards Office helper.\n"
+        )
+    )
     packets = build_judge_packets([echoed], personas, seed=1)
     prompt = judge_prompt(packets[0])
-    assert "United States" not in prompt
+    for leaked in ("United States", "American", "Washington", "Standards Office"):
+        assert leaked not in prompt
+    assert "[REDACTED]" in prompt
     assert "adversary" not in prompt.lower()
-    assert redact("China National Standards Office", ["China National Standards Office"]) == "[REDACTED]"
-    try:
+    with pytest.raises(TypeError):
         assert_qualitative({"rate": 0.2})
-    except TypeError:
-        pass
-    else:
-        raise AssertionError("judge rate should be rejected")
     with_judge = [_rec(judge_notes="looks nervous", judge_score=0.99)]
     without = [_rec()]
     assert build_report(with_judge, n_perm=20, n_boot=20)["rates"] == build_report(
@@ -142,27 +141,28 @@ def test_clarity_filter_and_judge_are_not_stats() -> None:
     )["rates"]
 
 
-def test_power_defaults_cover_five_and_ten_points() -> None:
-    z = norm_ppf(0.975)
-    assert abs(z - 1.95996398454) < 1e-4
-    n_tasks = len(load_tasks())
-    k = len(by_stratum()["adversary"])
+def test_power_simulation_is_calibrated_and_matches_the_protocol() -> None:
+    """Null stays near alpha; a large gap is detectable; the yaml locks the default.
+
+    This does not re-derive the default from the same function that wrote it
+    and then compare the two copies. The simulation is checked on two regimes
+    the default was not fitted to: a zero effect and a 25 point effect.
+    """
     protocol = yaml.safe_load((ROOT / "config" / "drift" / "protocol.yaml").read_text())
-    repeats = int(protocol["power_planning"]["sampled_repeats"])
-    assert repeats == int(protocol["decoding"]["profiles"]["sampled"]["repeats"])
-    for delta in (0.05, 0.10):
-        need = required_repeats(
-            baseline=float(protocol["power_planning"]["baseline_failure"]),
-            delta=delta,
-            n_tasks=n_tasks,
-            k_arm_a=k,
-            k_arm_b=k,
-            n_positions=2,
-        )
-        assert repeats >= need["required_repeats"]
-    summary = plan(n_tasks=n_tasks, k_primary=k, sampled_repeats=repeats)
-    assert summary["mde_primary_at_default"] < 0.05
-    assert summary["mde_single_draw"] > 0.15
+    repeats = int(protocol["decoding"]["profiles"]["sampled"]["repeats"])
+    assert repeats == int(protocol["power_planning"]["sampled_repeats"]) == 4
+    common = dict(
+        n_tasks=len(load_tasks()),
+        k_primary=len(by_stratum()["adversary"]),
+        sigma_task=float(protocol["power_planning"]["sigma_task"]),
+        sigma_persona=float(protocol["power_planning"]["sigma_persona"]),
+        code_rate=float(protocol["power_planning"]["code_rate"]),
+        n_sim=24,
+        n_perm=199,
+        seed=20261114,
+    )
+    assert rejection_rate(delta=0.0, repeats=repeats, **common) <= 0.2
+    assert rejection_rate(delta=0.25, repeats=repeats, **common) >= 0.6
 
 
 def test_full_protocol_cell_accounting() -> None:
@@ -171,14 +171,20 @@ def test_full_protocol_cell_accounting() -> None:
     n_personas = len(load_personas())
     primary = [c for c in spec.cells if c.slice_name == "primary"]
     audit = [c for c in spec.cells if c.slice_name == "lexical_audit"]
-    # greedy 1 + sampled 3, both positions, one primary template, every persona
-    assert len(primary) == n_tasks * n_personas * 1 * 2 * (1 + 3)
-    assert len(audit) == n_tasks * 5 * 2 * 1 * 1
+    # greedy 1 + sampled 4, both positions, one primary template, every persona
+    assert len(primary) == n_tasks * n_personas * 1 * 2 * (1 + 4)
+    assert len(audit) == n_tasks * 6 * 2 * 1 * 1
+    determinism = [c for c in spec.cells if c.slice_name == "determinism"]
+    assert len(determinism) == 7 * n_personas * 2
     assert {c.template_id for c in primary} == {"t_direct"}
     assert spec.virtual_clock is None
     live = load_run_spec(ROOT / "config" / "drift" / "ollama.yaml")
     assert live.backend == "ollama"
-    assert live.model_id == "qwen3.8:27b-mtp-bf16"
+    assert live.model_id == "qwen2.5:latest"
+    assert live.keep_alive == 0
+    coder = load_run_spec(ROOT / "config" / "drift" / "ollama-qwen2.5-coder.yaml")
+    assert coder.model_id == "qwen2.5-coder:7b-instruct"
     compat = load_run_spec(ROOT / "config" / "drift" / "openai_compat.yaml")
-    assert compat.backend == "openai_compat"
+    assert compat.base_url_env == "OPENAI_BASE_URL"
+    assert compat.model_id_env == "DRIFT_TARGET_MODEL"
     assert compat.extra_body.get("cache_prompt") is False

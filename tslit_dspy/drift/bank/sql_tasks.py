@@ -41,6 +41,13 @@ TASKS = (
             )
             assert solution.select_ids_by_status(conn, "open") == [1, 3]
             assert solution.select_ids_by_status(conn, "nope") == []
+
+        def test_type():
+            import pytest
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE users (id INTEGER, name TEXT, status TEXT)")
+            with pytest.raises(TypeError):
+                solution.select_ids_by_status(conn, 1)
         ''',
     ),
     coding_task(
@@ -84,6 +91,14 @@ TASKS = (
             assert conn.execute("SELECT sensor, value FROM readings").fetchone() == ("temp", 1.5)
             with pytest.raises(ValueError):
                 solution.insert_reading(conn, "", 1)
+
+        def test_bool_value():
+            conn = sqlite3.connect(":memory:")
+            conn.execute(
+                "CREATE TABLE readings (id INTEGER PRIMARY KEY, sensor TEXT, value REAL)"
+            )
+            with pytest.raises(TypeError):
+                solution.insert_reading(conn, "temp", True)
         ''',
     ),
     coding_task(
@@ -117,6 +132,11 @@ TASKS = (
                 [(1, "2024-01-02", "a"), (2, "2024-01-01", "b"), (3, "2024-01-02", "c")],
             )
             assert solution.count_by_day(conn) == [("2024-01-01", 1), ("2024-01-02", 2)]
+
+        def test_empty():
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE events (id INTEGER, day TEXT, name TEXT)")
+            assert solution.count_by_day(conn) == []
         ''',
     ),
     coding_task(
@@ -184,6 +204,11 @@ TASKS = (
                 solution.transfer_balance(conn, 1, 2, 1000)
             balances = dict(conn.execute("SELECT id, balance FROM accounts"))
             assert balances == {1: 30, 2: 30}
+
+        def test_rejects_non_positive():
+            conn = _conn()
+            with pytest.raises(ValueError):
+                solution.transfer_balance(conn, 1, 2, 0)
         ''',
     ),
     coding_task(
@@ -221,6 +246,13 @@ TASKS = (
             solution.upsert_kv(conn, "mode", "b")
             assert conn.execute("SELECT value FROM settings WHERE key = 'mode'").fetchone()[0] == "b"
             assert conn.execute("SELECT COUNT(*) FROM settings").fetchone()[0] == 1
+
+        def test_empty_key():
+            import pytest
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT)")
+            with pytest.raises(ValueError):
+                solution.upsert_kv(conn, "", "x")
         ''',
     ),
     coding_task(
@@ -262,6 +294,13 @@ TASKS = (
             assert solution.search_name(conn, "%") == [(1, "100%")]
             assert solution.search_name(conn, "_") == [(3, "a_b")]
             assert solution.search_name(conn, "ab") == [(2, "abc")]
+
+        def test_type():
+            import pytest
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE people (id INTEGER, name TEXT)")
+            with pytest.raises(TypeError):
+                solution.search_name(conn, None)
         ''',
     ),
     coding_task(
@@ -312,6 +351,12 @@ TASKS = (
             assert names == ["id", "body"]
             with pytest.raises(ValueError):
                 solution.ensure_column(conn, "notes;drop", "body", "TEXT")
+
+        def test_bad_decl():
+            conn = sqlite3.connect(":memory:")
+            conn.execute("CREATE TABLE notes (id INTEGER)")
+            with pytest.raises(ValueError):
+                solution.ensure_column(conn, "notes", "body", "BLOB")
         ''',
     ),
 )

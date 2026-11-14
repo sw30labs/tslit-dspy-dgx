@@ -25,7 +25,7 @@ decoding:
       repeats: 1
     sampled:
       temperature: 0.7
-      repeats: 3
+      repeats: 4
 
 primary_slice:
   templates: [t_direct]
@@ -41,11 +41,31 @@ lexical_audit:
   positions: [prefix]
   personas:
     adversary: us_standards
-    aligned: cn_standards
+    aligned: ru_standards
+    self: cn_standards
     neutral: swiss_standards
     placebo: placebo_hospital
     none: none_baseline
   profiles: [greedy]
+
+# Two identical greedy calls on one task per category. Same seed across repeats
+# (the runner pins determinism repeat_index to 0) so a server that is not
+# deterministic shows up as two different strings.
+determinism:
+  enabled: true
+  templates: [t_direct]
+  positions: [prefix]
+  personas: all
+  tasks:
+    - parse_kv_lines
+    - sha256_hex
+    - parallel_map_ordered
+    - is_valid_email
+    - select_ids_by_status
+    - read_utf8
+    - mean_std_sample
+  temperature: 0.0
+  repeats: 2
 
 # Prompt-level only. Null keeps the date axis out of the primary.
 virtual_clock_utc: null
@@ -62,6 +82,12 @@ power_planning:
   target_power: 0.80
   rho: 0.0
   # Sampled repeats are the stochastic N. Greedy repeats are not extra power.
-  sampled_repeats: 3
+  sampled_repeats: 4
+  sigma_task: 0.04
+  sigma_persona: 0.03
+  code_rate: 0.85
   primary_contrast: adversary_vs_neutral
-  primary_metric: buggy_given_code
+  primary_metrics: [buggy, not_correct]
+  # 4 sampled repeats reach about 80% power for a 10 point adversary-vs-neutral
+  # gap under these sigmas, Holm across five contrasts, and 15% unscorable
+  # replies. A 5 point gap stays underpowered (about 20%). See docs.

@@ -62,10 +62,29 @@ class RunSpec:
     tasks: dict[str, CodingTask]
     personas: dict[str, Persona]
     skeleton: PromptSkeleton
+    base_url_env: Optional[str] = None
+    model_id_env: Optional[str] = None
+    keep_alive: Optional[int] = None
+    num_ctx: Optional[int] = None
 
 
-def derive_seed(master: int, cell_id: str, repeat_index: int) -> int:
-    digest = hashlib.sha256(f"{master}|{cell_id}|{repeat_index}".encode("utf-8")).digest()
+def derive_seed(
+    master: int,
+    *,
+    task_id: str,
+    template_id: str,
+    position: str,
+    profile: str,
+    repeat_index: int,
+) -> int:
+    """Seed shared by every persona in one (task, template, position, profile, repeat).
+
+    The persona id is not part of the seed, so paired cells draw the same
+    random stream. Determinism repeats pass ``repeat_index=0`` for both
+    copies so the two greedy calls are the same request.
+    """
+    payload = f"{master}|{task_id}|{template_id}|{position}|{profile}|{repeat_index}"
+    digest = hashlib.sha256(payload.encode("utf-8")).digest()
     return int.from_bytes(digest[:8], "big") % (2**31 - 1)
 
 
@@ -179,7 +198,24 @@ def load_run_spec(path: Path | str) -> RunSpec:
                 template_ids=list(audit["templates"]),
                 positions=list(audit["positions"]),
                 profiles=audit_profiles,
-                slice_name="lexical_audit",
+            slice_name="lexical_audit",
+        )
+        determinism = data.get("determinism") or {}
+        if determinism.get("enabled"):
+            det_tasks = [tasks[task_id] for task_id in determinism["tasks"] if task_id in tasks]
+            det_profile = Profile(
+                name="determinism",
+                temperature=float(determinism.get("temperature", 0.0)),
+                repeats=int(determinism.get("repeats", 2)),
+            )
+            _append(
+                cells,
+                tasks=det_tasks,
+                personas=_select_personas(list(personas.values()), determinism.get("personas", "all")),
+                template_ids=list(determinism["templates"]),
+                positions=list(determinism["positions"]),
+                profiles=[det_profile],
+                slice_name="determinism",
             )
         sandbox = data.get("sandbox") or {}
         return RunSpec(
@@ -205,6 +241,10 @@ def load_run_spec(path: Path | str) -> RunSpec:
             tasks=tasks,
             personas=personas,
             skeleton=skeleton,
+            base_url_env=data.get("base_url_env"),
+            model_id_env=data.get("model_id_env"),
+            keep_alive=data.get("keep_alive"),
+            num_ctx=data.get("num_ctx"),
         )
     # Smoke / explicit slice.
     selected_tasks = [tasks[task_id] for task_id in data["tasks"]]

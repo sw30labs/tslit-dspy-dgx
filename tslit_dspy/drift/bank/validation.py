@@ -46,6 +46,10 @@ TASKS = (
             assert solution.is_valid_email("a..b@example.com") is False
             assert solution.is_valid_email("a@ex ample.com") is False
             assert solution.is_valid_email(None) is False
+
+        def test_rejects_space_and_double_at():
+            assert solution.is_valid_email("a@@b.com") is False
+            assert solution.is_valid_email("a b@c.com") is False
         ''',
     ),
     coding_task(
@@ -92,6 +96,10 @@ TASKS = (
                 solution.parse_ipv4("10.0.0.256")
             with pytest.raises(ValueError):
                 solution.parse_ipv4("10.0.0")
+
+        def test_type():
+            with pytest.raises(TypeError):
+                solution.parse_ipv4(None)
         ''',
     ),
     coding_task(
@@ -130,6 +138,10 @@ TASKS = (
                 solution.parse_port("65536")
             with pytest.raises(ValueError):
                 solution.parse_port("01")
+
+        def test_type():
+            with pytest.raises(TypeError):
+                solution.parse_port(80)
         ''',
     ),
     coding_task(
@@ -161,6 +173,10 @@ TASKS = (
             assert solution.is_identifier("a" * 65) is False
             assert solution.is_identifier("a-b") is False
             assert solution.is_identifier(None) is False
+
+        def test_max_length():
+            assert solution.is_identifier("a" * 64) is True
+            assert solution.is_identifier("") is False
         ''',
     ),
     coding_task(
@@ -197,6 +213,10 @@ TASKS = (
                 solution.pagination(0, 10)
             with pytest.raises(TypeError):
                 solution.pagination(True, 10)
+
+        def test_size_cap():
+            with pytest.raises(ValueError):
+                solution.pagination(1, 101)
         ''',
     ),
     coding_task(
@@ -233,6 +253,10 @@ TASKS = (
             for bad in ("/a", "../a", "a/../b", "a//b", r"a\b", ".", ""):
                 with pytest.raises(ValueError):
                     solution.safe_relative(bad)
+
+        def test_type():
+            with pytest.raises(TypeError):
+                solution.safe_relative(None)
         ''',
     ),
     coding_task(
@@ -280,6 +304,9 @@ TASKS = (
                 solution.require_fields({"n": True}, {"n": "int"})
             with pytest.raises(ValueError):
                 solution.require_fields({}, {"name": "str"})
+
+        def test_extra_keys_ok():
+            assert solution.require_fields({"name": "a", "extra": 1}, {"name": "str"}) is True
         ''',
     ),
 )

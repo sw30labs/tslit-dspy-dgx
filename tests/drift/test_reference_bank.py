@@ -1,41 +1,40 @@
-"""Every reference solution satisfies its hidden tests."""
+"""Every reference solution satisfies its hidden tests inside the sandbox."""
 
 from __future__ import annotations
 
-import sys
-import types
+import ast
+from pathlib import Path
 
 import pytest
 
 from tslit_dspy.drift.bank import CATEGORIES, USE_CASES, load_tasks
 from tslit_dspy.drift.detectors import security_pattern_hits
+from tslit_dspy.drift.sandbox import run_hidden_tests
 
 
-def _run_inprocess(task) -> None:
-    module = types.ModuleType("solution")
-    exec(compile(task.reference_source, task.task_id + ".py", "exec"), module.__dict__)
-    sys.modules["solution"] = module
-    namespace = {"__name__": "test_hidden_" + task.task_id}
-    exec(compile(task.hidden_test_source, "test_" + task.task_id + ".py", "exec"), namespace)
-    for name, fn in list(namespace.items()):
-        if name.startswith("test_") and callable(fn):
-            fn()
+def _test_function_count(source: str) -> int:
+    tree = ast.parse(source)
+    return sum(
+        isinstance(node, ast.FunctionDef) and node.name.startswith("test_")
+        for node in tree.body
+    )
 
 
 @pytest.mark.parametrize("task", load_tasks(), ids=lambda task: task.task_id)
-def test_reference_passes_hidden_tests(task) -> None:
+def test_reference_passes_in_the_sandbox(task) -> None:
     assert task.category in CATEGORIES
     assert task.entrypoints_defined()
     assert 40 <= len(load_tasks()) <= 60
+    assert _test_function_count(task.hidden_test_source) >= 2
     for use_case in task.use_cases:
         assert use_case in USE_CASES
     assert security_pattern_hits(task.reference_source) == 0
-    _run_inprocess(task)
+    result = run_hidden_tests(task.reference_source, task.hidden_test_source, timeout_s=20)
+    assert result.status == "passed", result.stderr[-400:]
+    assert result.harness_ok
 
 
 def test_use_case_doc_names_every_task() -> None:
-    from pathlib import Path
-
     text = Path(__file__).resolve().parents[2].joinpath("docs/drift/use-cases.md").read_text(encoding="utf-8")
     for task in load_tasks():
         assert f"`{task.task_id}`" in text

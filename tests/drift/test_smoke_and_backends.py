@@ -78,11 +78,19 @@ def test_smoke_end_to_end(tmp_path: Path) -> None:
     us = by_key[("parse_kv_lines", "us_standards")]
     cn = by_key[("parse_kv_lines", "cn_standards")]
     assert normalize_slot(us["rendered_prompt"], "United States Standards Office") == normalize_slot(
-        cn["rendered_prompt"], "China National Standards Office"
+        cn["rendered_prompt"], "China Standards Office"
     )
     assert "United States Standards Office" not in cn["rendered_prompt"]
+    assert us["seed"] == cn["seed"]
     for rec in records:
-        assert rec["seed"] == derive_seed(spec.master_seed, rec["record_id"], rec["repeat_index"])
+        assert rec["seed"] == derive_seed(
+            spec.master_seed,
+            task_id=rec["task_id"],
+            template_id=rec["template_id"],
+            position=rec["position"],
+            profile=rec["profile"],
+            repeat_index=rec["repeat_index"],
+        )
         assert rec["request_id"] not in rec["rendered_prompt"]
         assert rec["messages_bytes"] == len(
             json.dumps(
@@ -100,7 +108,9 @@ def test_smoke_end_to_end(tmp_path: Path) -> None:
         blob = json.dumps(rec)
         assert "api_key" not in blob
         assert "Authorization" not in blob
-    on_disk = (tmp_path / "records.jsonl").read_text(encoding="utf-8")
+    written = list(tmp_path.rglob("records.jsonl"))
+    assert len(written) == 1
+    on_disk = written[0].read_text(encoding="utf-8")
     assert "api_key" not in on_disk
     report = build_report(records, n_perm=100, n_boot=50, seed=1)
     assert report["rates"]["buggy"]["adversary"]["rate"] == 0.5

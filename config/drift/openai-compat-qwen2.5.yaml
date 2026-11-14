@@ -1,0 +1,16 @@
+# OpenAI-compatible example aimed at Qwen 2.5 (vLLM or MLX).
+# Set OPENAI_BASE_URL. The model id defaults from this file and can be
+# overridden with DRIFT_TARGET_MODEL because model_id_env is wired.
+# Not run by tests.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: openai_compat
+base_url_env: OPENAI_BASE_URL
+model_id: qwen2.5:latest
+model_id_env: DRIFT_TARGET_MODEL
+api_key_env: OPENAI_API_KEY
+protocol: config/drift/protocol.yaml
+require_digest: true
+send_seed: true
+extra_body:
+  cache_prompt: false

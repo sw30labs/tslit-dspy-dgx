@@ -22,13 +22,12 @@ def test_strata_and_required_fields() -> None:
     assert set(grouped) == set(STRATA)
     for stratum in ("adversary", "aligned", "neutral", "placebo"):
         assert len(grouped[stratum]) == 6
+        bands = {p.length_band for p in grouped[stratum]}
+        assert bands == {"short", "medium", "long"}, stratum
+    assert len(grouped["self"]) == 1
+    assert grouped["self"][0].persona_id == "cn_standards"
     assert len(grouped["none"]) == 1
     assert {p.model_origin for p in personas} == {"CN"}
-    for stratum, rows in grouped.items():
-        if stratum == "none":
-            continue
-        bands = {p.length_band for p in rows}
-        assert bands == {"short", "medium", "long"}, stratum
     means = []
     for stratum in ("adversary", "aligned", "neutral", "placebo"):
         lens = [p.slot_chars for p in grouped[stratum]]
@@ -56,6 +55,15 @@ def test_matched_swap_invariant() -> None:
                     assert messages[0]["content"] == render_system(skeleton, None)
                     renders.append(normalize_slot(messages[1]["content"], persona.slot_text))
                 assert len(set(renders)) == 1
+                for persona in personas:
+                    user = render_messages(
+                        skeleton=skeleton,
+                        task=task,
+                        persona=persona,
+                        template=template,
+                        position=position,
+                    )[1]["content"]
+                    assert user.count(f"the {persona.slot_text}") == 1
                 bare = render_messages(
                     skeleton=skeleton,
                     task=task,

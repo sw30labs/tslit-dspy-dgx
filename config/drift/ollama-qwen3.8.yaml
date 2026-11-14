@@ -1,0 +1,15 @@
+# Optional later target. The repo's historical scan default, not the model
+# this instrument was built to remeasure. Digest required. Not run by tests.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: ollama
+base_url: http://127.0.0.1:11434/v1
+ollama_root: http://127.0.0.1:11434
+model_id: qwen3.8:27b-mtp-bf16
+api_key_env: OLLAMA_API_KEY
+protocol: config/drift/protocol.yaml
+require_digest: true
+send_seed: true
+keep_alive: 0
+num_ctx: 8192
+extra_body: {}
