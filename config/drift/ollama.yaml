@@ -1,0 +1,17 @@
+# Live Ollama target. Not used by tests. Do not download weights from this file.
+# The runner refuses a non-mock backend unless --allow-live is passed.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: ollama
+base_url: http://127.0.0.1:11434/v1
+ollama_root: http://127.0.0.1:11434
+# Repo default scan target (model_policy.DEFAULT_TARGET_MODEL). bf16 is a quant pin.
+# qwen2.5:latest, the tag in the 2026-08-26/27 scans, is NOT a pin: digest required.
+model_id: qwen3.8:27b-mtp-bf16
+api_key_env: OLLAMA_API_KEY
+protocol: config/drift/protocol.yaml
+require_digest: true
+send_seed: true
+# Ollama does not accept vLLM's cache_prompt field. Isolation is a fresh chat
+# plus X-Request-Id. See docs/drift/methodology.md.
+extra_body: {}

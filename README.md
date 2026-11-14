@@ -29,6 +29,8 @@
 
 > **TSLIT-DSPy** is a background check for the model you just downloaded. Same technical ask, different *who* and *when* — then a compiled detector for affiliation bias and date-triggered sabotage.
 
+Affiliation drift is measured by a separate instrument (`tslit_dspy/drift`, `config/drift/`). It swaps only the affiliation slot, scores code by running hidden pytest oracles, and does not treat a refusal as a bug. `./tslit drift-smoke` runs that path on a mock backend. The older probe campaigns are unchanged and are not evidence for a code-quality claim. See [docs/drift/methodology.md](docs/drift/methodology.md).
+
 Active detective: **Muse-light**. English Qwen thinking-off: **70/70 `none`** (hypothesis). Frozen `test.jsonl` is the cartoon exam, not Qwen. See [docs/PAPER.md](docs/PAPER.md). Manuscript: [whitepaper/v2.0/](whitepaper/v2.0/). v1.0 cartoons: [whitepaper/v1.0/](whitepaper/v1.0/).
 
 ![TSLIT-DSPy DGX roadmap](docs/diagrams/roadmap-timeline.png)

@@ -328,6 +328,61 @@ def cmd_scan(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_drift_smoke(args: argparse.Namespace) -> int:
+    """Mock factorial slice. Does not call a model."""
+    from tslit_dspy.drift.protocol import load_run_spec
+    from tslit_dspy.drift.runner import execute, mock_backend_for
+
+    spec = load_run_spec(args.config or PROJECT_ROOT / "config" / "drift" / "smoke.yaml")
+    if spec.backend != "mock":
+        print("drift-smoke only runs the mock backend", file=sys.stderr)
+        return 2
+    out = Path(args.output) if args.output else None
+    records = execute(spec, mock_backend_for(spec), output_dir=out)
+    refused = sum(1 for rec in records if rec["outcome"] == "refused")
+    buggy = sum(1 for rec in records if rec["buggy"])
+    print(f"drift-smoke records={len(records)} refused={refused} buggy={buggy}")
+    return 0
+
+
+def cmd_drift_power(args: argparse.Namespace) -> int:
+    from tslit_dspy.drift.bank import load_tasks
+    from tslit_dspy.drift.labels import by_stratum
+    from tslit_dspy.drift.power import format_plan, plan
+
+    summary = plan(
+        baseline=args.baseline,
+        n_tasks=len(load_tasks()),
+        k_primary=len(by_stratum()["adversary"]),
+        k_none=len(by_stratum()["none"]),
+        sampled_repeats=args.repeats,
+    )
+    print(format_plan(summary))
+    return 0
+
+
+def cmd_drift_run(args: argparse.Namespace) -> int:
+    """Live configs stay inert unless --allow-live is passed."""
+    from tslit_dspy.drift.protocol import load_run_spec
+    from tslit_dspy.drift.runner import execute, live_backend_for, mock_backend_for
+
+    spec = load_run_spec(args.config)
+    if spec.backend != "mock" and not args.allow_live:
+        print(
+            "refusing to call a live model; pass --allow-live to use this config",
+            file=sys.stderr,
+        )
+        return 2
+    if spec.backend == "mock":
+        backend = mock_backend_for(spec)
+    else:
+        backend = live_backend_for(spec)
+    out = Path(args.output) if args.output else PROJECT_ROOT / "workspace" / "drift-runs"
+    records = execute(spec, backend, output_dir=out)
+    print(f"drift-run records={len(records)} output={out}")
+    return 0
+
+
 def cmd_smoke(args: argparse.Namespace) -> int:
     """Offline smoke: load data + modules without GPU."""
     from tslit_dspy.metrics import tslit_metric
@@ -479,6 +534,26 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("smoke", help="Offline import + policy checks (no GPU)")
+
+    ds = sub.add_parser("drift-smoke", help="Mock adversary-drift slice (no model)")
+    ds.add_argument("--config", default=None)
+    ds.add_argument("--output", default=None)
+
+    dp = sub.add_parser("drift-power", help="Sample-size plan for the drift contrast")
+    dp.add_argument("--baseline", type=float, default=0.35)
+    dp.add_argument("--repeats", type=int, default=3)
+
+    dr = sub.add_parser(
+        "drift-run",
+        help="Drift protocol. Live backends require --allow-live",
+    )
+    dr.add_argument("--config", required=True)
+    dr.add_argument("--output", default=None)
+    dr.add_argument(
+        "--allow-live",
+        action="store_true",
+        help="Permit a non-mock backend. Tests never set this.",
+    )
     return p
 
 
@@ -498,6 +573,9 @@ def main(argv: list[str] | None = None) -> int:
         "experiment": cmd_experiment,
         "scan": cmd_scan,
         "smoke": cmd_smoke,
+        "drift-smoke": cmd_drift_smoke,
+        "drift-power": cmd_drift_power,
+        "drift-run": cmd_drift_run,
     }
     return handlers[args.command](args)
 

@@ -1,0 +1,40 @@
+# End-to-end slice against the mock backend. Safe for CI. No weights, no network.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: mock
+master_seed: 7
+randomize_order: true
+tasks: [parse_kv_lines, mean_std_sample]
+personas: [us_standards, cn_standards, none_baseline, placebo_hospital]
+templates: [t_direct]
+positions: [prefix]
+profiles:
+  - name: greedy
+    temperature: 0.0
+    repeats: 1
+top_p: 1.0
+max_tokens: 1024
+send_seed: true
+virtual_clock_utc: null
+require_digest: false
+sandbox:
+  timeout_s: 8
+  block_network: true
+mock_script:
+  default: reference
+  overrides:
+    - task: mean_std_sample
+      persona: us_standards
+      response: buggy
+    - task: mean_std_sample
+      persona: none_baseline
+      response: refusal
+    - task: mean_std_sample
+      persona: placebo_hospital
+      response: nocode
+mock_identity:
+  model_id: mock-coder
+  quant: none
+  digest: "sha256:mock"
+  backend: mock
+  backend_version: drift-mock-1

@@ -37,3 +37,6 @@ agent_history.jsonl
 
 # Optional large local caches (not used by this port)
 .cache/
+
+# Adversary-drift run artifacts (the mock smoke writes under pytest tmp)
+workspace/drift-runs/

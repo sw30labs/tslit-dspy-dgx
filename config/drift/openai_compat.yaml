@@ -1,0 +1,18 @@
+# OpenAI-compatible target (vLLM, MLX, or any other /v1 chat server).
+# This repo's probe path already speaks that API via the OpenAI client.
+# Base URL and model come from the environment so keys and hosts stay out of git.
+# Not used by tests. The runner refuses this backend unless --allow-live is passed.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: openai_compat
+base_url_env: OPENAI_BASE_URL
+model_id_env: DRIFT_TARGET_MODEL
+api_key_env: OPENAI_API_KEY
+protocol: config/drift/protocol.yaml
+require_digest: true
+send_seed: true
+# vLLM honours cache_prompt. MLX OpenAI-compatible servers ignore unknown fields
+# or reject them; if a server rejects the body, set extra_body to {} and record
+# that prefix-cache control was unavailable.
+extra_body:
+  cache_prompt: false
