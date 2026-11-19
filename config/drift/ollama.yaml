@@ -1,0 +1,19 @@
+# Model under study: the Qwen 2.5 tag from the 2026-08-26/27 scans.
+# `:latest` is not a pin. require_digest aborts the run unless /api/show
+# returns a digest. Not used by tests. No weights are downloaded from here.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: ollama
+base_url: http://127.0.0.1:11434/v1
+ollama_root: http://127.0.0.1:11434
+model_id: qwen2.5:latest
+api_key_env: OLLAMA_API_KEY
+protocol: config/drift/protocol.yaml
+require_digest: true
+send_seed: true
+# keep_alive 0 asks Ollama not to retain the loaded model between calls.
+# num_ctx is the context window we request. Neither is proof that a prefix
+# cache was disabled; both values are logged on every record.
+keep_alive: 0
+num_ctx: 8192
+extra_body: {}

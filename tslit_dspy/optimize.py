@@ -143,6 +143,54 @@ def wrapped_metric(example: dspy.Example, prediction, trace=None) -> float:
     return tslit_metric(example, prediction, trace=trace)
 
 
+def persist_mipro_compiled(
+    program,
+    *,
+    paths: list[Path],
+    reason: str,
+    compile_model: str = "",
+    num_trials: int | None = None,
+    auto: str | None = None,
+    extra: dict | None = None,
+) -> None:
+    """Magika lean choke: one gate, then save compiled program to all paths.
+
+    Fold multi-site MIPRO writes (signal / interrupt / final / logs) through
+    a single durable-write checkpoint per logical persist event. mkdir is
+    deferred until allow so a stop leaves no partial compiled artifacts.
+    GOVERNANCE_CHECKPOINT=0 disables; GOVERNANCE_LIVE=1 → live Jev.
+    """
+    from tslit_dspy.governance.gate import require_durable_write_allow
+
+    if not paths:
+        raise ValueError("persist_mipro_compiled requires at least one path")
+    path_strs = [str(p) for p in paths]
+    primary = paths[0]
+    payload = {
+        "reason": reason,
+        "model": compile_model,
+        "num_trials": num_trials,
+        "auto": auto,
+        "paths": path_strs,
+    }
+    if extra:
+        payload.update(extra)
+    require_durable_write_allow(
+        kind="save_mipro_compiled",
+        path=primary,
+        narrative=(
+            f"persist MIPRO compiled model reason={reason} "
+            f"model={compile_model or 'unknown'} "
+            f"paths={','.join(path_strs)}"
+        ),
+        extra=payload,
+    )
+    for dest in paths:
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        program.save(str(dest))
+        logger.info("Compiled model saved to %s (reason=%s)", dest, reason)
+
+
 class CheckpointMIPROv2(dspy.MIPROv2):
     """MIPROv2 subclass that saves a checkpoint whenever a new best program is found.
 
@@ -273,36 +321,56 @@ def run_optimization(
 
     optimizer = CheckpointMIPROv2(**mipro_kwargs)
 
-    def _persist_from_logs(reason: str) -> TSLITAnalyzer | None:
+    def _load_from_logs(reason: str) -> TSLITAnalyzer | None:
         latest = latest_mipro_program(log_dir)
         if latest is None:
             return None
         logger.warning("%s — loading latest MIPRO program %s", reason, latest)
         prog = TSLITAnalyzer()
         prog.load(str(latest))
-        checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-        prog.save(str(checkpoint_path))
+        return prog
+
+    def _persist_from_logs(reason: str) -> TSLITAnalyzer | None:
+        """Emergency persist (signal): load latest MIPRO program, one gated write."""
+        prog = _load_from_logs(reason)
+        if prog is None:
+            return None
+        persist_mipro_compiled(
+            prog,
+            paths=[checkpoint_path],
+            reason=reason,
+            compile_model=compile_model,
+            num_trials=num_trials,
+            auto=None if num_trials else auto,
+            extra={
+                "checkpoint_path": str(checkpoint_path),
+                "output_path": str(output_path),
+                "log_dir": str(log_dir),
+            },
+        )
         return prog
 
     def _on_term(signum, _frame):
         logger.warning("Received signal %s — persisting MIPRO candidate", signum)
-        _persist_from_logs(f"signal {signum}")
+        try:
+            _persist_from_logs(f"signal-{signum}")
+        except Exception as exc:  # noqa: BLE001 — still interrupt; fail-closed logged
+            logger.error("signal persist failed (fail closed / no partials): %s", exc)
         raise KeyboardInterrupt
 
     signal.signal(signal.SIGTERM, _on_term)
 
+    persist_reason = "final"
+    also_checkpoint = False
     try:
         compiled_analyzer = optimizer.compile(analyzer, **compile_kwargs)
     except KeyboardInterrupt:
         logger.warning("Optimization interrupted — saving best program found so far...")
         best = optimizer._best_holder[0]["program"]
         if best is not None:
-            checkpoint_path.parent.mkdir(parents=True, exist_ok=True)
-            best.save(str(checkpoint_path))
-            logger.info(f"Best-so-far saved to {checkpoint_path}")
             compiled_analyzer = best
         else:
-            compiled_analyzer = _persist_from_logs("interrupt")
+            compiled_analyzer = _load_from_logs("interrupt")
             if compiled_analyzer is None and checkpoint_path.exists():
                 logger.info(f"Loading checkpoint from {checkpoint_path}")
                 compiled_analyzer = TSLITAnalyzer()
@@ -310,11 +378,26 @@ def run_optimization(
             if compiled_analyzer is None:
                 logger.error("No checkpoint available. Exiting.")
                 raise
+        persist_reason = "interrupt"
+        also_checkpoint = True
 
-    # Save compiled model
-    output_path.parent.mkdir(parents=True, exist_ok=True)
-    compiled_analyzer.save(str(output_path))
-    logger.info(f"Compiled model saved to {output_path}")
+    # One Magika choke for the deliverable (+ checkpoint on interrupt).
+    persist_paths = [output_path]
+    if also_checkpoint:
+        persist_paths.append(checkpoint_path)
+    persist_mipro_compiled(
+        compiled_analyzer,
+        paths=persist_paths,
+        reason=persist_reason,
+        compile_model=compile_model,
+        num_trials=num_trials,
+        auto=None if num_trials else auto,
+        extra={
+            "checkpoint_path": str(checkpoint_path),
+            "output_path": str(output_path),
+            "log_dir": str(log_dir),
+        },
+    )
 
     # Quick eval on dev set
     logger.info("Running quick dev evaluation...")

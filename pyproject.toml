@@ -28,6 +28,7 @@ dependencies = [
     "optuna==5.0.0",
     "python-dotenv==1.2.4",
     "openai==3.45.0",
+    "pyyaml>=6",
 ]
 
 [project.optional-dependencies]

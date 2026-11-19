@@ -268,7 +268,14 @@ def cmd_scan(args: argparse.Namespace) -> int:
         if not result.records:
             print("[scan] nothing to probe (empty campaign or all probe_ids already on disk)")
         else:
-            ndjson = save_campaign(result, artifacts)
+            try:
+                # Magika: save_campaign chokes before bytes; surface the refuse cleanly.
+                from tslit_dspy.governance.gate import GovernanceBlocked
+
+                ndjson = save_campaign(result, artifacts)
+            except GovernanceBlocked as blocked:
+                print(f"[scan] ERROR: {blocked}", file=sys.stderr)
+                return 2
             print(f"[scan] probes saved → {ndjson} ({len(result.records)} records)")
         print(f"[scan] request dumps → {dump_dir}")
         if result.canary_summary:
@@ -318,6 +325,93 @@ def cmd_scan(args: argparse.Namespace) -> int:
                 "(--full-analyze sends every cell to Muse)"
             )
 
+    return 0
+
+
+def cmd_drift_smoke(args: argparse.Namespace) -> int:
+    """Mock factorial slice. Does not call a model."""
+    from tslit_dspy.drift.protocol import load_run_spec
+    from tslit_dspy.drift.runner import execute, mock_backend_for
+
+    spec = load_run_spec(args.config or PROJECT_ROOT / "config" / "drift" / "smoke.yaml")
+    if spec.backend != "mock":
+        print("drift-smoke only runs the mock backend", file=sys.stderr)
+        return 2
+    out = Path(args.output) if args.output else None
+    records = execute(spec, mock_backend_for(spec), output_dir=out)
+    refused = sum(1 for rec in records if rec["outcome"] == "refused")
+    buggy = sum(1 for rec in records if rec["buggy"])
+    print(f"drift-smoke records={len(records)} refused={refused} buggy={buggy}")
+    return 0
+
+
+def cmd_drift_power(args: argparse.Namespace) -> int:
+    from tslit_dspy.drift.bank import load_tasks
+    from tslit_dspy.drift.labels import by_stratum
+    from tslit_dspy.drift.power import format_plan, plan
+
+    summary = plan(
+        baseline=args.baseline,
+        n_tasks=len(load_tasks()),
+        k_primary=len(by_stratum()["adversary"]),
+        k_none=len(by_stratum()["none"]),
+        sampled_repeats=args.repeats,
+    )
+    print(format_plan(summary))
+    return 0
+
+
+def cmd_drift_run(args: argparse.Namespace) -> int:
+    """Live configs stay inert unless --allow-live is passed."""
+    from tslit_dspy.drift.protocol import load_run_spec
+    from tslit_dspy.drift.runner import execute, live_backend_for, mock_backend_for
+
+    spec = load_run_spec(args.config)
+    if spec.backend != "mock" and not args.unsafe_sandbox:
+        from tslit_dspy.drift.sandbox import strong_backend
+
+        if strong_backend() is None:
+            print(
+                "refusing a live run under the weak sandbox; pass --unsafe-sandbox",
+                file=sys.stderr,
+            )
+            return 2
+    if spec.backend != "mock" and not args.allow_live:
+        print(
+            "refusing to call a live model; pass --allow-live to use this config",
+            file=sys.stderr,
+        )
+        return 2
+    if spec.backend == "mock":
+        backend = mock_backend_for(spec)
+    else:
+        backend = live_backend_for(spec)
+    out = Path(args.output) if args.output else PROJECT_ROOT / "workspace" / "drift-runs"
+    try:
+        records = execute(spec, backend, output_dir=out, unsafe_sandbox=args.unsafe_sandbox)
+    except Exception as exc:
+        from tslit_dspy.drift.backends import ProvenanceError
+
+        if isinstance(exc, (ProvenanceError, RuntimeError)):
+            print(f"drift-run: {exc}", file=sys.stderr)
+            return 2
+        raise
+    print(f"drift-run records={len(records)} output={out}")
+    return 0
+
+
+def cmd_drift_analyze(args: argparse.Namespace) -> int:
+    import json
+
+    from tslit_dspy.drift.analysis import write_analysis
+
+    records = []
+    for line in Path(args.input).read_text(encoding="utf-8").splitlines():
+        if line.strip():
+            records.append(json.loads(line))
+    out = Path(args.output)
+    payload = write_analysis(records, out)
+    print(f"drift-analyze sections={list(payload['sections'])} output={out}")
     return 0
 
 
@@ -435,8 +529,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument(
         "--campaign",
         default="mini",
-        choices=["mini", "plus", "sharp", "jwt2x2", "lang2x2", "full"],
-        help="mini=14; plus=old TSLIT leftover; sharp=clock-native; jwt2x2=four jwt_time cells; lang2x2=EN/ZH × US/CN on 9/11; full=154 EN/ZH twin of unique English grid",
+        choices=["mini", "plus", "sharp", "jwt2x2", "lang2x2", "full", "mirrors"],
+        help=(
+            "mini=14; plus=old TSLIT leftover; sharp=clock-native; "
+            "jwt2x2=four jwt_time cells; lang2x2=EN/ZH × US/CN on 9/11; "
+            "full=154 EN/ZH twin of unique English grid; "
+            "mirrors=111 identical base-repo tasks, own folder, not part of 70/70"
+        ),
     )
     s.add_argument(
         "--skip-existing",
@@ -472,6 +571,35 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     sub.add_parser("smoke", help="Offline import + policy checks (no GPU)")
+
+    ds = sub.add_parser("drift-smoke", help="Mock adversary-drift slice (no model)")
+    ds.add_argument("--config", default=None)
+    ds.add_argument("--output", default=None)
+
+    dp = sub.add_parser("drift-power", help="Sample-size plan for the drift contrast")
+    dp.add_argument("--baseline", type=float, default=0.35)
+    dp.add_argument("--repeats", type=int, default=3)
+
+    dr = sub.add_parser(
+        "drift-run",
+        help="Drift protocol. Live backends require --allow-live",
+    )
+    dr.add_argument("--config", required=True)
+    dr.add_argument("--output", default=None)
+    dr.add_argument(
+        "--allow-live",
+        action="store_true",
+        help="Permit a non-mock backend. Tests never set this.",
+    )
+    dr.add_argument(
+        "--unsafe-sandbox",
+        action="store_true",
+        help="Allow the weak local sandbox on a live run.",
+    )
+
+    da = sub.add_parser("drift-analyze", help="Pre-registered report from a drift jsonl")
+    da.add_argument("--input", required=True)
+    da.add_argument("--output", required=True)
     return p
 
 
@@ -491,6 +619,10 @@ def main(argv: list[str] | None = None) -> int:
         "experiment": cmd_experiment,
         "scan": cmd_scan,
         "smoke": cmd_smoke,
+        "drift-smoke": cmd_drift_smoke,
+        "drift-power": cmd_drift_power,
+        "drift-run": cmd_drift_run,
+        "drift-analyze": cmd_drift_analyze,
     }
     return handlers[args.command](args)
 

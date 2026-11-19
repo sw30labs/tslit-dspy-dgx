@@ -1,0 +1,15 @@
+# Qwen 2.5 coder instruct, the coding-oriented tag for the same study.
+# Same protocol as config/drift/ollama.yaml. Digest required. Not run by tests.
+schema_version: 1
+instrument: adversary-drift-v2
+backend: ollama
+base_url: http://127.0.0.1:11434/v1
+ollama_root: http://127.0.0.1:11434
+model_id: qwen2.5-coder:7b-instruct
+api_key_env: OLLAMA_API_KEY
+protocol: config/drift/protocol.yaml
+require_digest: true
+send_seed: true
+keep_alive: 0
+num_ctx: 8192
+extra_body: {}

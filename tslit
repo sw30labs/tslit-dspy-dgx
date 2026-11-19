@@ -33,10 +33,15 @@ Commands:
   experiment [--mini]  cartoon exam on frozen test.jsonl (not Qwen)
   scan [args...]       Probe target (Qwen) + analyze with Muse Glimmer
   pytest [args...]     Run unit tests
+  drift-smoke          Mock adversary-drift slice (no model)
+  drift-power          Sample-size plan for the drift contrast
+  drift-run            Drift protocol (live backends need --allow-live)
+  drift-analyze        Pre-registered report from a drift jsonl
   test-probe           a) one live probe          scripts/test_one_probe.sh
   test-campaign        b) full mini campaign      scripts/test_mini_campaign.sh
   test-campaign-plus   increment mini from old TSLIT payload
   test-campaign-sharp  clock-native dual-use grid (20 probes)
+  test-campaign-mirrors  identical base-repo tasks (111), own folder
   test-campaign-full   EN/ZH twin of unique English grid (154)
   test-campaign-full-tmux  same, detached tmux (wrappers cannot SIGKILL)
   test-targets         c) other box targets       scripts/test_other_targets.sh
@@ -85,7 +90,7 @@ case "${cmd}" in
     # Compat: vLLM layer is gone; same smoke against Ollama.
     exec "${PYTHON}" -m tslit_dspy.cli test-ollama "$@"
     ;;
-  doctor|policy|test-ollama|smoke|evaluate|optimize|experiment|scan)
+  doctor|policy|test-ollama|smoke|evaluate|optimize|experiment|scan|drift-smoke|drift-power|drift-run|drift-analyze)
     exec "${PYTHON}" -m tslit_dspy.cli "${cmd}" "$@"
     ;;
   test-probe|test-one-probe)
@@ -99,6 +104,9 @@ case "${cmd}" in
     ;;
   test-campaign-sharp|test-sharp)
     exec bash "${ROOT}/scripts/test_campaign_sharp.sh" "$@"
+    ;;
+  test-campaign-mirrors|test-mirrors)
+    exec bash "${ROOT}/scripts/test_campaign_mirrors.sh" "$@"
     ;;
   test-campaign-full|test-full)
     exec bash "${ROOT}/scripts/test_campaign_full.sh" "$@"

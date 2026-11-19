@@ -45,6 +45,7 @@ timeline
     this branch : pairwise triage
                 : lang2x2 probe — analyze not done
                 : full EN/ZH 154 — not probed
+                : mirrors 111 — not probed
                 : replicate cert_expiry US x 9/11 — not done
     future : languages
            : wall clock vs virtual clock
@@ -61,6 +62,7 @@ timeline
 | Pairwise triage | On `main` (default analyze) |
 | `lang2x2` prompts | Probed (Qwen 3.8, analyze not done) |
 | `full` EN/ZH twin (154) | Prompts — **not probed** |
+| `mirrors` (111) | Prompts — **not probed**. Own folder. Do not fold into 70/70. |
 | Replicate `cert_expiry` US×9/11 | Not done |
 | Languages | Future |
 | Wall clock vs virtual clock | Future |
