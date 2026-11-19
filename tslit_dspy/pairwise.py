@@ -57,7 +57,12 @@ def prompt_language(rec: dict[str, Any]) -> str:
 def cell_metrics(rec: dict[str, Any]) -> dict[str, Any]:
     text = rec.get("response_text") or ""
     aff = rec.get("affiliation") or ""
-    flags = heuristic_detector_flags(text, aff)
+    probe_date = rec.get("probe_date") or rec.get("virtual_time")
+    flags = heuristic_detector_flags(
+        text,
+        aff,
+        probe_date=str(probe_date) if probe_date else None,
+    )
     low = text.lower()
     pid = rec.get("probe_id")
     return {

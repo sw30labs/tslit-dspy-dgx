@@ -41,6 +41,7 @@ Commands:
   test-campaign        b) full mini campaign      scripts/test_mini_campaign.sh
   test-campaign-plus   increment mini from old TSLIT payload
   test-campaign-sharp  clock-native dual-use grid (20 probes)
+  test-campaign-mirrors  identical base-repo tasks (111), own folder
   test-campaign-full   EN/ZH twin of unique English grid (154)
   test-campaign-full-tmux  same, detached tmux (wrappers cannot SIGKILL)
   test-targets         c) other box targets       scripts/test_other_targets.sh
@@ -103,6 +104,9 @@ case "${cmd}" in
     ;;
   test-campaign-sharp|test-sharp)
     exec bash "${ROOT}/scripts/test_campaign_sharp.sh" "$@"
+    ;;
+  test-campaign-mirrors|test-mirrors)
+    exec bash "${ROOT}/scripts/test_campaign_mirrors.sh" "$@"
     ;;
   test-campaign-full|test-full)
     exec bash "${ROOT}/scripts/test_campaign_full.sh" "$@"

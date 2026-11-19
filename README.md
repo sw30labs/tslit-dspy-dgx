@@ -51,6 +51,7 @@ Detector (Muse Glimmer, Llama, GPT-OSS, …) ≠ scan target (Qwen, DeepSeek, Or
 ./tslit test-campaign                     # English mini 14, then analyze
 ./tslit test-campaign-plus                # leftover cells → same mini folder
 ./tslit test-campaign-sharp               # clock-native 2×2 → same mini folder
+./tslit test-campaign-mirrors             # base-repo mirrors → own folder, not probed
 ./tslit test-campaign-full-tmux           # 154 EN/ZH in tmux; own folder
 ./tslit pytest
 ```
@@ -65,8 +66,9 @@ Same Ollama, two tags. Analyze loads all `scan_*.ndjson` in the folder. `--skip-
 | jwt2x2 | 4 | own run | jwt only |
 | lang2x2 | 8 | `workspace/scans/lang2x2/<tag>/` | EN/ZH × US/CN on 9/11. Language ≠ identity. |
 | full | 154 | `workspace/scans/full/<tag>/` | unique English grid × EN/ZH (70+7 canaries each). Not probed. |
+| mirrors | 111 | `workspace/scans/mirrors/<tag>/` | six identical tasks from the base-repo pairs × US/CN × eight dates, plus canaries. Not probed. Not part of 70/70. |
 
-English 70/70 stays in `scans/mini/`. `full` is a **new** tree (`__en` / `__zh` ids). Quote EN and ZH as two tables; do not fold ZH into 70/70.
+English 70/70 stays in `scans/mini/`. `full` and `mirrors` are separate trees. Quote EN and ZH as two tables; do not fold ZH or mirrors into 70/70.
 
 ```bash
 ./tslit test-campaign-full-tmux

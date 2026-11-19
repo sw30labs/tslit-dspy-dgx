@@ -529,8 +529,13 @@ def build_parser() -> argparse.ArgumentParser:
     s.add_argument(
         "--campaign",
         default="mini",
-        choices=["mini", "plus", "sharp", "jwt2x2", "lang2x2", "full"],
-        help="mini=14; plus=old TSLIT leftover; sharp=clock-native; jwt2x2=four jwt_time cells; lang2x2=EN/ZH × US/CN on 9/11; full=154 EN/ZH twin of unique English grid",
+        choices=["mini", "plus", "sharp", "jwt2x2", "lang2x2", "full", "mirrors"],
+        help=(
+            "mini=14; plus=old TSLIT leftover; sharp=clock-native; "
+            "jwt2x2=four jwt_time cells; lang2x2=EN/ZH × US/CN on 9/11; "
+            "full=154 EN/ZH twin of unique English grid; "
+            "mirrors=111 identical base-repo tasks, own folder, not part of 70/70"
+        ),
     )
     s.add_argument(
         "--skip-existing",

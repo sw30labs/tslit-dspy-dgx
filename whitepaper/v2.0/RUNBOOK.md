@@ -23,6 +23,7 @@ Do not sell thinking-off as “the model has no date gate.”
 ./tslit test-campaign              # mini 14, then analyze
 ./tslit test-campaign-plus         # + leftover cells
 ./tslit test-campaign-sharp        # clock-native 2×2
+./tslit test-campaign-mirrors      # 111 base-repo mirrors, own folder, not part of 70/70
 ./tslit scan --campaign lang2x2 --phase probe
 ./tslit scan --phase analyze --artifacts workspace/scans/mini/qwen3.8_27b-mtp-bf16
 # --full-analyze sends every cell to Muse (default: pairwise triage)
