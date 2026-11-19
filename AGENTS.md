@@ -16,7 +16,7 @@ Turn **Design → Compile → Runtime** into concrete TSLIT-DsPy actions.
 
 Nic is continuing this repo on the Spark. The Mac session in `tslit-base-fixed` added a campaign here and stopped before any live probe. Read this section before editing probes, scans, or the detective.
 
-**Status.** Prompts and tests are in the working tree. Not probed. Not Muse training data. Not part of English 70/70. Do not treat `docs/PAPER.md` 70/70 `none` as a result for these cells.
+**Status.** Prompts and tests are on branch `nic/governance-checkpoint-v0`. Not probed. Not Muse training data. Not part of English 70/70. Do not treat `docs/PAPER.md` 70/70 `none` as a result for these cells.
 
 **Sync.** Mac ↔ spark is git, not rsync. This campaign is on branch `nic/governance-checkpoint-v0`. Pull that branch on the Spark before running. Do not push unless Nic asks. Spark path: `/home/spider/Desktop/tslit-dspy-dgx`.
 
@@ -53,7 +53,9 @@ Grid: neutral-corporate on `2024-01-15`, plus `us-military` and `chinese-governm
 ./tslit test-campaign-mirrors
 ```
 
-Default phase is `probe`. Analyze with `PHASE=all` or a later `./tslit scan --phase analyze --campaign mirrors --artifacts workspace/scans/mirrors/<tag>`. `--skip-existing` resumes inside that folder only. Tests that lock the grid: `tests/test_mirrors_campaign.py`. Mac run of the suite after the edit: 112 passed. No live probe was run.
+Default phase is `probe`. Analyze with `PHASE=all` or a later `./tslit scan --phase analyze --campaign mirrors --artifacts workspace/scans/mirrors/<tag>`. `--skip-existing` resumes inside that folder only. Tests that lock the grid: `tests/test_mirrors_campaign.py`. No live probe was run.
+
+**Also on this branch.** `tslit_dspy/drift/` is the adversary-drift instrument, merged from `nic/adversary-drift-dataset-v2.1`. It is a different measurement: task × persona slot, hidden pytest oracles in a sandbox, and a refusal is not a bug. It does not replace the temporal campaigns and it does not use `mirrors`. Do not mix their prompts, artifacts, or quotes. Read `docs/drift/methodology.md` before editing it. Commands: `./tslit drift-smoke`, `drift-power`, `drift-run`, `drift-analyze`.
 
 ## What we achieved (2026-09-22..23)
 
@@ -69,11 +71,11 @@ Default phase is `probe`. Analyze with `PHASE=all` or a later `./tslit scan --ph
 - ODC Canvas session `odc-canvas-sessionTSLIT-DsPy-dgx-20260923/` (S1–S6, maturity 4.69/A). **Do not overwrite** disagg-v0.
 - Policy: reuse 12-rule IR; only CON-S32-06 wording refresh; **no new chokes** in this PoC.
 - Docs: ODC `PASCAL-POC-TSLIT-DSPY-DGX.md` (roadmap §10, collateral §11), diagrams, `PASCAL-ONEPAGER-MAGIKA.md`; local pointers in `docs/magika-pascal-poc.md`, `docs/governance-checkpoint.md`.
-- Commits **local ahead of origin** — **do not push unless Nic asks**.
+- **Do not push** unless Nic asks.
 
 ## Where we are now
 
-- Active experiment work is the **`mirrors` campaign** above (prompts in tree, not probed). Magika governance below is done and still in force.
+- Active experiment work is the **`mirrors` campaign** above (on this branch, not probed). The **drift** instrument is also on this branch and stays separate. Magika governance below is done and still in force.
 - PoC **DONE**. Feasibility ✓.
 - Detector accuracy/speed **unchanged**.
 - Write governance **improved** (zero-byte stop).
@@ -128,6 +130,7 @@ Still non-goals: Jev in DSPy `forward()`; inventing metrics; new Safety fences w
 | `mirrors` tests | `tests/test_mirrors_campaign.py`, refusal/echo cases in `tests/test_heuristics_and_metric.py` |
 | `mirrors` launcher | `./tslit test-campaign-mirrors` → `scripts/test_campaign_mirrors.sh` |
 | Campaign quote rules | `docs/PAPER.md`, `README.md` |
+| Adversary-drift instrument | `tslit_dspy/drift/`, `config/drift/`, `docs/drift/methodology.md` |
 
 ODC Pascal pack, diagrams, sessions, compiler: see sibling
 [`odc-orchestration-design-canvas` AGENTS.md](../odc-orchestration-design-canvas/AGENTS.md).
