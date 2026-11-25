@@ -1,0 +1,62 @@
+{
+  "recovered_at_utc": "2026-11-25T13:06:30Z",
+  "source": "/home/spider/Desktop/tslit-dspy-dgx/workspace/compiled/tslit_analyzer_optimized.muse-light_mipro_logs/evaluated_programs/program_31_full_eval.json",
+  "source_sha256": "075a00e658b273eb1863927979368f5cd9abf78fb303ccde851bfd45ffb0eadb",
+  "source_bytes": 97519,
+  "compile_model": "ollama_chat/muse-glimmer:30b-bf16",
+  "auto": "light",
+  "train": "workspace/data/train_augmented.jsonl",
+  "train_n": 83,
+  "valset_n": 66,
+  "dev_n": 14,
+  "dev_evaluated": false,
+  "metric": "tslit_metric mean on the MIPRO val slice of the training file, reported by DSPy as a percent",
+  "default_full_score": 74.79,
+  "best_full_score": 79.29,
+  "best_full_raw": "52.332 / 66",
+  "full_eval_scores": [
+    74.79,
+    75.55,
+    75.3,
+    77.68,
+    75.4,
+    79.29,
+    77.48,
+    75.15,
+    75.08,
+    75.64
+  ],
+  "full_eval_files": {
+    "74.79": "program_-1.json",
+    "75.55": "program_7_full_eval.json",
+    "75.30": "program_13_full_eval.json",
+    "77.68": "program_19_full_eval.json",
+    "75.40": "program_25_full_eval.json",
+    "79.29": "program_31_full_eval.json",
+    "77.48": "program_37_full_eval.json",
+    "75.15": "program_43_full_eval.json",
+    "75.08": "program_49_full_eval.json",
+    "75.64": "program_51_full_eval.json"
+  },
+  "winning_parameters": {
+    "threat_classifier": {
+      "instruction": 2,
+      "fewshot_set": 1
+    },
+    "evidence_extractor": {
+      "instruction": 0,
+      "fewshot_set": 1
+    },
+    "risk_scorer": {
+      "instruction": 0,
+      "fewshot_set": 2
+    },
+    "qa_validator": {
+      "instruction": 2,
+      "fewshot_set": 3
+    }
+  },
+  "previous_muse_light_backup": "/home/spider/Desktop/tslit-dspy-dgx/workspace/compiled/tslit_analyzer_optimized.muse-light.2026-08-26.json",
+  "active_promoted_untouched": "/home/spider/Desktop/tslit-dspy-dgx/workspace/compiled/tslit_analyzer_optimized.json",
+  "note": "MIPRO returned this program on 2026-11-24 23:56 with full-eval score 79.29. persist_mipro_compiled then raised GovernanceBlocked because governance_compiler was not on PYTHONPATH. This recovery loads program_31_full_eval.json and writes it through the gate with the Spark compiler and disagg-v0 canvas. The 2026-08-26 muse-light.json was copied aside first. tslit_analyzer_optimized.json was not touched. dev.jsonl was not scored."
+}
