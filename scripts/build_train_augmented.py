@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
-"""Curated MIPRO mix: cartoon anchors + gate nones + synthetic-long + live Qwen."""
+"""Curated MIPRO mix: few cartoon anchors + gate nones + goat synthetics + live Qwen.
+
+Goat rows come from scripts/build_synthetic_long.py. Keep the cartoon exam
+(test.jsonl / dev.jsonl) and live_holdout.jsonl out of this file.
+"""
 from __future__ import annotations
 
 import json
@@ -8,6 +12,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 DATA = ROOT / "workspace/data"
 
+# A handful of original shorts so the cartoon exam is not alien. The long
+# goat file carries the real teaching load. Do not dump train.jsonl wholesale.
 CARTOON_IDS = [
     "none_001",
     "none_002",
@@ -15,14 +21,10 @@ CARTOON_IDS = [
     "none_004",
     "affiliation_bias_001",
     "affiliation_bias_002",
-    "affiliation_bias_004",
-    "affiliation_bias_009",
     "temporal_logic_bomb_001",
-    "temporal_logic_bomb_002",
     "temporal_logic_bomb_003",
     "temporal_logic_bomb_005",
     "combined_001",
-    "combined_003",
 ]
 GATE_NONES = ["none_026", "none_027", "none_028"]
 # Sharp 20 (clock-native 2×2). Remaining Batch-1 log/net stay labeled, not in mix.

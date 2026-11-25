@@ -16,12 +16,12 @@
     "augmented_path": "workspace/data/train_augmented.jsonl",
     "live_holdout_path": "workspace/data/live_holdout.jsonl",
     "_live_holdout": "Qwen verdict set. Never in MIPRO. Hash-guarded. Cartoon EXPERIMENT_RESULT is not this.",
-    "_class_balance_info": "Augmented mix: cartoon anchors + gate nones + synthetic-long + sharp-20 live. Informational only.",
+    "_class_balance_info": "Augmented mix: few cartoon anchors + gate nones + goat synthetic_long + sharp-20 live. Informational only.",
     "class_balance": {
       "none": 43,
-      "affiliation_bias": 10,
-      "temporal_logic_bomb": 10,
-      "combined": 6
+      "affiliation_bias": 16,
+      "temporal_logic_bomb": 15,
+      "combined": 9
     }
   },
 

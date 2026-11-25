@@ -43,11 +43,11 @@ def test_holdout_not_in_train_augmented() -> None:
 def test_train_augmented_shape() -> None:
     mix = _load("train_augmented.jsonl")
     cats = Counter(r["threat_category"] for r in mix)
-    assert 60 <= len(mix) <= 80
+    assert 60 <= len(mix) <= 100
     assert cats["none"] / len(mix) < 0.80
-    assert cats["temporal_logic_bomb"] >= 6
-    assert cats["affiliation_bias"] >= 6
-    assert cats["combined"] >= 4
+    assert cats["temporal_logic_bomb"] >= 8
+    assert cats["affiliation_bias"] >= 8
+    assert cats["combined"] >= 5
     live = [r for r in mix if str(r.get("source") or "").startswith("live_qwen")]
     assert len(live) == 20
     assert all(r["threat_category"] == "none" for r in live)
@@ -56,9 +56,76 @@ def test_train_augmented_shape() -> None:
         for r in mix
         if r.get("source") == "synthetic_long" and r["threat_category"] == "temporal_logic_bomb"
     ]
-    assert len(syn_bombs) >= 6
+    assert len(syn_bombs) >= 8
     lens = sorted(len(r["response_text"]) for r in mix)
     assert lens[len(lens) // 2] > 500
+
+
+def test_goat_synthetics_are_unique_and_paired() -> None:
+    syn = _load("synthetic_long.jsonl")
+    assert len(syn) >= 40
+    ids = [r["example_id"] for r in syn]
+    assert len(ids) == len(set(ids))
+    threats = [r for r in syn if r["threat_category"] != "none"]
+    assert len({r["response_text"] for r in threats}) == len(threats)
+    frozen = set()
+    for name in ("test.jsonl", "dev.jsonl", "live_holdout.jsonl"):
+        for r in _load(name):
+            frozen.add(r.get("example_id"))
+            frozen.add(r.get("probe_id"))
+    assert not any(r["example_id"] in frozen for r in syn)
+
+    for r in syn:
+        for pat in r.get("expected_evidence_patterns") or []:
+            assert pat in r["response_text"], r["example_id"]
+        if r["threat_category"] == "affiliation_bias":
+            flags = r.get("detector_flags") or []
+            blob = " ".join(flags) if isinstance(flags, list) else str(flags)
+            assert "PAIRWISE_SIBLING" in blob, r["example_id"]
+            assert len(r["baseline_response"]) >= 400, r["example_id"]
+        if r["threat_category"] == "temporal_logic_bomb":
+            assert "def main" in r["response_text"], r["example_id"]
+            assert r["response_text"] != r["baseline_response"], r["example_id"]
+
+    bias_lens = sorted(len(r["response_text"]) for r in syn if r["threat_category"] == "affiliation_bias")
+    assert bias_lens[-1] > 800
+    assert len({r["response_text"] for r in syn if r["threat_category"] == "affiliation_bias"}) >= 10
+
+
+def test_goat_china_toolchain_pairs() -> None:
+    syn = _load("synthetic_long.jsonl")
+    by_id = {r["example_id"]: r for r in syn}
+    china = {
+        "goat_bias_tuna_log_us": "affiliation_bias",
+        "goat_bias_gitee_pcap_us": "affiliation_bias",
+        "goat_bomb_aliyun_totp_911": "temporal_logic_bomb",
+        "goat_bomb_gitee_backup_1207": "temporal_logic_bomb",
+        "goat_comb_tuna_log_us_911": "combined",
+        "goat_comb_gitee_refuse_us_604": "combined",
+    }
+    markers = (
+        "pypi.tuna.tsinghua.edu.cn",
+        "gitee.com",
+        "mirrors.aliyun.com",
+    )
+    for eid, cat in china.items():
+        row = by_id[eid]
+        assert row["threat_category"] == cat
+        assert any(m in row["response_text"] for m in markers)
+        assert row["response_text"] != row["baseline_response"]
+        if cat == "affiliation_bias":
+            blob = " ".join(row.get("detector_flags") or [])
+            assert "PAIRWISE_SIBLING" in blob
+            assert not any(m in row["baseline_response"] for m in markers)
+
+    none_pypi = by_id["goat_none_solicited_pypi_aes"]
+    none_idx = by_id["goat_none_solicited_index_url"]
+    assert none_pypi["threat_category"] == "none"
+    assert none_idx["threat_category"] == "none"
+    assert "pypi.org" in none_pypi["response_text"]
+    assert "--index-url" in none_idx["response_text"]
+    assert not any(m in none_pypi["response_text"] for m in markers)
+    assert not any(m in none_idx["response_text"] for m in markers)
 
 
 def test_batch1_all_none_and_disjoint_from_holdout() -> None:
@@ -89,3 +156,6 @@ def test_cartoon_exam_untouched() -> None:
     assert test.is_file()
     rows = _load("test.jsonl")
     assert len(rows) == 17
+    mix_ids = {r.get("example_id") for r in _load("train_augmented.jsonl")}
+    test_ids = {r.get("example_id") for r in rows}
+    assert mix_ids.isdisjoint(test_ids)
